@@ -6,6 +6,7 @@ const int MAP_LENGTH = 10;
 
 int test = 0;
 
+// Une tile se compose de 4 murs, ce sont des valeurs vrai ou faux
 struct tile {
   bool top;
   bool down;
@@ -13,6 +14,7 @@ struct tile {
   bool right;
 };
 
+// Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
 tile TileMap[MAP_WIDTH][MAP_LENGTH];
 
 void TurnRight()
@@ -40,6 +42,7 @@ bool DetectWhistle()
   Serial.println("Whistle detected, GOGOGO !");
 }
 
+// Fonction permettant d'afficher la map dans la console, elle sert seulement pour tester et visualiser.
 void PrintMap() {
   Serial.println("");
 
@@ -128,14 +131,11 @@ void GenerateMap()
 void setup() {
   BoardInit();
   GenerateMap();
-  TileMap[1][7].down = true;
-  TileMap[1][6].top = true;
   PrintMap();
   delay(500);
 }
 
 void loop() {
-  //PrintTile(TileMap[0][5]);
   delay(500);
 }
 
