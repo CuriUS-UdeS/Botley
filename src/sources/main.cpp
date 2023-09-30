@@ -6,7 +6,7 @@ const int MAP_LENGTH = 10;
 
 int test = 0;
 
-// Une tile se compose de 4 murs, ce sont des valeurs vrai ou faux
+// Une tile se compose de 4 murs, ce sont des valeurs vrai ou faux.
 struct tile {
   bool top;
   bool down;
