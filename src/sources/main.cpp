@@ -34,7 +34,7 @@ void TurnAround()
 
 void GoForward()
 {
-  
+  Serial.println("Moving forward !");
 }
 
 bool DetectWhistle()
