@@ -4,42 +4,301 @@
 const int MAP_WIDTH = 3;
 const int MAP_LENGTH = 10;
 
-int test = 0;
+int coordX = 1;
+int coordY = 0;
+int orientation = 2;
 
-// Une tile se compose de 4 murs, ce sont des valeurs vrai ou faux.
+bool isMazeDone = false;
+
+// Une tile se compose de 4 murs, représentés par 0, 1 ou 2.
 struct tile {
-  bool top;
-  bool down;
-  bool left;
-  bool right;
+  int top;
+  int down;
+  int left;
+  int right;
 };
 
 // Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
 tile TileMap[MAP_WIDTH][MAP_LENGTH];
 
+int CheckForWall() {
+  switch (orientation)
+    {
+    case 0:
+      return TileMap[coordX][coordY].left;
+      break;
+    case 1:
+      return TileMap[coordX][coordY].right;
+      break;
+    case 2:
+      return TileMap[coordX][coordY].top;
+      break;
+    case 3:
+      return TileMap[coordX][coordY].down;
+      break;
+    default:
+      Serial.println("Impossible to check for wall !");
+      break;
+  }
+}
+
+void AddWall(int type) {
+  if(type == 1) {
+    switch (orientation)
+    {
+    case 0:
+      TileMap[coordX][coordY].left = type;
+      TileMap[coordX - 1][coordY].right = type;
+      break;
+    case 1:
+      TileMap[coordX][coordY].right = type;
+      TileMap[coordX + 1][coordY].left = type;
+      break;
+    case 2:
+      TileMap[coordX][coordY].top = type;
+      TileMap[coordX][coordY + 1].down = type;
+      break;
+    case 3:
+      TileMap[coordX][coordY].down = type;
+      TileMap[coordX][coordY - 1].top = type;
+      break;
+    default:
+      Serial.println("Can't create a new wall ! ");
+      break;
+    }
+  } else {
+    switch (orientation)
+    {
+    case 0:
+      TileMap[coordX][coordY].right = type;
+      TileMap[coordX + 1][coordY].left = type;
+      break;
+    case 1:
+      TileMap[coordX][coordY].left = type;
+      TileMap[coordX - 1][coordY].right = type;
+      break;
+    case 2:
+      TileMap[coordX][coordY].down = type;
+      TileMap[coordX][coordY - 1].top = type;
+      break;
+    case 3:
+      TileMap[coordX][coordY].top = type;
+      TileMap[coordX][coordY + 1].down = type;
+      break;
+    default:
+      Serial.println("Can't create a new wall ! ");
+      break;
+    }
+  }
+}
+
 void TurnRight()
 {
+  switch (orientation)
+  {
+  case 0:
+    orientation = 2;
+    break;
+  case 1:
+    orientation = 3;
+    break;
+  case 2:
+    orientation = 1;
+    break;
+  case 3:
+    orientation = 0;
+    break;
+  default:
+    break;
+  }
   Serial.println("Turning right !");
 }
 
 void TurnLeft()
 {
+  switch (orientation)
+  {
+  case 0:
+    orientation = 3;
+    break;
+  case 1:
+    orientation = 2;
+    break;
+  case 2:
+    orientation = 0;
+    break;
+  case 3:
+    orientation = 1;
+    break;
+  default:
+    break;
+  }
   Serial.println("Turning left !");
 }
 
 void TurnAround()
 {
+  switch (orientation)
+  {
+  case 0:
+    orientation = 1;
+    break;
+  case 1:
+    orientation = 0;
+    break;
+  case 2:
+    orientation = 3;
+    break;
+  case 3:
+    orientation = 2;
+    break;
+  default:
+    break;
+  }
   Serial.println("Turning around !");
 }
 
 void GoForward()
 {
+  switch (orientation)
+  {
+  case 0:
+    coordX--;
+    AddWall(2);
+    break;
+  case 1:
+    coordX++;
+    AddWall(2);
+    break;
+  case 2:
+    coordY++;
+    AddWall(2);
+    break;
+  case 3:
+    coordY--;
+    AddWall(2);
+    break;
+  default:
+    break;
+  }
   Serial.println("Moving forward !");
+}
+
+void Turn(int newOrientation) {
+  switch (orientation)
+  {
+  case 0:
+    switch (newOrientation)
+    {
+    case 0:
+      break;
+    case 1:
+      TurnAround();
+      break;
+    case 2:
+      TurnRight();
+      break;
+    case 3:
+      TurnLeft();
+      break;
+    default:
+      Serial.println("IMPOSSIBLE TO TURN !");
+      break;
+    }
+    break;
+  case 1:
+    switch (newOrientation)
+    {
+    case 0:
+      TurnAround();
+      break;
+    case 1:
+      break;
+    case 2:
+      TurnLeft();
+      break;
+    case 3:
+      TurnRight();
+      break;
+    default:
+      Serial.println("IMPOSSIBLE TO TURN !");
+      break;
+    }
+    break;
+  case 2:
+    switch (newOrientation)
+    {
+    case 0:
+      TurnLeft();
+      break;
+    case 1:
+      TurnRight();
+      break;
+    case 2:
+      break;
+    case 3:
+      TurnAround();
+      break;
+    default:
+      Serial.println("IMPOSSIBLE TO TURN !");
+      break;
+    }
+    break;
+  case 3:
+    switch (newOrientation)
+    {
+    case 0:
+      TurnRight();
+      break;
+    case 1:
+      TurnLeft();
+      break;
+    case 2:
+      TurnAround();
+      break;
+    case 3:
+      break;
+    default:
+      Serial.println("IMPOSSIBLE TO TURN !");
+      break;
+    }
+    break;
+  default:
+    Serial.println("IMPOSSIBLE TO TURN !");
+    break;
+  }
 }
 
 bool DetectWhistle()
 {
   Serial.println("Whistle detected, GOGOGO !");
+}
+
+void PrintRobotState() {
+  Serial.print("Coordinates : (");
+  Serial.print(coordX);
+  Serial.print(", ");
+  Serial.print(coordY);
+  Serial.print(")");
+
+  switch (orientation)
+  {
+  case 0:
+    Serial.print("   Orientation : left");
+    break;
+  case 1:
+    Serial.print("   Orientation : right");
+    break;
+  case 2:
+    Serial.print("   Orientation : Top");
+    break;
+  case 3:
+    Serial.print("   Orientation : down");
+    break;
+  default:
+    Serial.print("   Orientation : ERROR");
+    break;
+  }
 }
 
 // Fonction permettant d'afficher la map dans la console, elle sert seulement pour tester et visualiser.
@@ -49,7 +308,9 @@ void PrintMap() {
   for (int y = MAP_LENGTH - 1; y >= 0; y--) { // Start from the bottom row and go upwards
     // Print the top row of each tile
     for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].top) {
+      if (TileMap[x][y].top == 2) {
+        Serial.print("+###+");
+      } else if (TileMap[x][y].top == 1) {
         Serial.print("+---+");
       } else {
         Serial.print("+   +");
@@ -59,13 +320,17 @@ void PrintMap() {
 
     // Print the middle row of each tile (including walls on the left and right)
     for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].left) {
+      if (TileMap[x][y].left == 2) {
+        Serial.print("#");
+      } else if (TileMap[x][y].left == 1) {
         Serial.print("|");
       } else {
         Serial.print(" ");
       }
       Serial.print("   ");
-      if (TileMap[x][y].right) {
+      if (TileMap[x][y].right == 2) {
+        Serial.print("#");
+      } else if (TileMap[x][y].right == 1) {
         Serial.print("|");
       } else {
         Serial.print(" ");
@@ -75,13 +340,45 @@ void PrintMap() {
 
     // Print the bottom row of each tile
     for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].down) {
+      if (TileMap[x][y].down == 2) {
+        Serial.print("+###+");
+      } else if (TileMap[x][y].down == 1) {
         Serial.print("+---+");
       } else {
         Serial.print("+   +");
       }
     }
     Serial.println(); // Move to the next row
+  }
+}
+
+int FindTheWay() {
+  int frontWall = CheckForWall();
+
+  if(frontWall == 0) {
+    return orientation;
+  }
+
+  if(TileMap[coordX][coordY].top == 0) {
+    return 2;
+  } else if (TileMap[coordX][coordY].left == 0) {
+    return 0;
+  } else if (TileMap[coordX][coordY].right == 0) {
+    return 1;
+  } else if (TileMap[coordX][coordY].down == 0) {
+    return 3;
+  }
+
+  if(TileMap[coordX][coordY].top == 2) {
+    return 2;
+  } else if (TileMap[coordX][coordY].left == 2) {
+    return 0;
+  } else if (TileMap[coordX][coordY].right == 2) {
+    return 1;
+  } else if (TileMap[coordX][coordY].down == 2) {
+    return 3;
+  } else {
+    return -1;
   }
 }
 
@@ -131,11 +428,42 @@ void GenerateMap()
 void setup() {
   BoardInit();
   GenerateMap();
-  PrintMap();
+  TileMap[1][0].top = 1;
+  TileMap[2][0].top = 1;
+  TileMap[0][2].top = 1;
+  TileMap[1][2].right = 1;
+  TileMap[1][2].down = 1;
+  TileMap[1][4].top = 1;
+  TileMap[1][4].right = 1;
+  TileMap[0][4].down = 1;
+  TileMap[0][6].top = 1;
+  TileMap[1][6].down = 1;
+  TileMap[1][6].right = 1;
+  TileMap[1][8].left = 1;
+  TileMap[1][8].top = 1;
+  TileMap[2][8].down = 1;
   delay(500);
 }
 
 void loop() {
-  delay(500);
+  if(coordY == 9) {
+    PrintRobotState();
+    PrintMap();
+    Serial.print("\n\n\n\nWe are the champions, my friends \nAnd we'll keep on fighting till the end \nWe are the champions \nWe are the champions \nNo time for losers \nCause we are the champions of the World");
+    PrintRobotState();
+    PrintMap();
+    isMazeDone = true;
+    delay(150000);
+  }
+
+  if (!isMazeDone) {
+    PrintRobotState();
+    PrintMap();
+    int newOrientation = FindTheWay();
+    Turn(newOrientation);
+    GoForward();
+  }
+
+  delay(1000);
 }
 
