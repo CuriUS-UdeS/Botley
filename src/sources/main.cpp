@@ -4,6 +4,9 @@
 const int MAP_WIDTH = 3;
 const int MAP_LENGTH = 10;
 
+const int LEFT_IR_PIN = 24;
+const int RIGHT_IR_PIN = 26;
+
 int coordX = 1;
 int coordY = 0;
 int orientation = 2;
@@ -21,7 +24,7 @@ struct tile {
 // Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
 tile TileMap[MAP_WIDTH][MAP_LENGTH];
 
-int CheckForWall() {
+int CheckForFrontWall() {
   switch (orientation)
     {
     case 0:
@@ -92,8 +95,26 @@ void AddWall(int type) {
   }
 }
 
+bool DetectWall() {
+  // Function to add a new wall if the 2 IR sensors detect something
+  bool isIRLeft = !digitalRead(LEFT_IR_PIN);
+  bool isIRRigth = !digitalRead(RIGHT_IR_PIN);
+
+  if(isIRLeft && isIRRigth) {
+    AddWall(1);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void TurnRight()
 {
+  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(1, -0.2);
+  delay(1000);
+  MOTOR_SetSpeed(0, 0);
+  MOTOR_SetSpeed(1, 0);
   switch (orientation)
   {
   case 0:
@@ -116,6 +137,11 @@ void TurnRight()
 
 void TurnLeft()
 {
+  MOTOR_SetSpeed(0, -0.2);
+  MOTOR_SetSpeed(1, 0.2);
+  delay(1000);
+  MOTOR_SetSpeed(0, 0);
+  MOTOR_SetSpeed(1, 0);
   switch (orientation)
   {
   case 0:
@@ -138,6 +164,11 @@ void TurnLeft()
 
 void TurnAround()
 {
+  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(1, -0.2);
+  delay(2000);
+  MOTOR_SetSpeed(0, 0);
+  MOTOR_SetSpeed(1, 0);
   switch (orientation)
   {
   case 0:
@@ -160,6 +191,11 @@ void TurnAround()
 
 void GoForward()
 {
+  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(1, 0.2);
+  delay(4600);
+  MOTOR_SetSpeed(0, 0);
+  MOTOR_SetSpeed(1, 0);
   switch (orientation)
   {
   case 0:
@@ -353,11 +389,13 @@ void PrintMap() {
 }
 
 int FindTheWay() {
-  int frontWall = CheckForWall();
+  /*
+  int frontWall = CheckForFrontWall();
 
   if(frontWall == 0) {
     return orientation;
   }
+  */
 
   if(TileMap[coordX][coordY].top == 0) {
     return 2;
@@ -428,10 +466,16 @@ void GenerateMap()
 void setup() {
   BoardInit();
   GenerateMap();
-  TileMap[1][0].top = 1;
+
+  // Initialize the IR pins
+  pinMode(LEFT_IR_PIN, INPUT);
+  pinMode(RIGHT_IR_PIN, INPUT);
+
+  // Hard code of one particular map
   TileMap[2][0].top = 1;
   TileMap[0][2].top = 1;
   TileMap[1][2].right = 1;
+  TileMap[1][1].top = 1;
   TileMap[1][2].down = 1;
   TileMap[1][4].top = 1;
   TileMap[1][4].right = 1;
@@ -442,28 +486,42 @@ void setup() {
   TileMap[1][8].left = 1;
   TileMap[1][8].top = 1;
   TileMap[2][8].down = 1;
+
   delay(500);
 }
 
 void loop() {
-  if(coordY == 9) {
-    PrintRobotState();
-    PrintMap();
-    Serial.print("\n\n\n\nWe are the champions, my friends \nAnd we'll keep on fighting till the end \nWe are the champions \nWe are the champions \nNo time for losers \nCause we are the champions of the World");
+
+  // Check if the robot has reached the end (coordY == 9)
+  if (coordY == 9) {
     PrintRobotState();
     PrintMap();
     isMazeDone = true;
     delay(150000);
   }
 
+  // If the maze is not yet complete
   if (!isMazeDone) {
     PrintRobotState();
     PrintMap();
-    int newOrientation = FindTheWay();
-    Turn(newOrientation);
-    GoForward();
+
+    // Perform actions in a specific order:
+
+    int newOrientation;
+
+    // Detect if there's a wall or a tape in front of the robot and update the map
+    while(DetectWall() == true || CheckForFrontWall() == 1) {
+      // Find the new orientation after detecting walls
+      newOrientation = FindTheWay();
+      if (newOrientation != -1)
+        Turn(newOrientation);
+    }
+    // If a valid path is found, adjust the orientation and move forward
+    if (newOrientation != -1) {
+      GoForward();
+    }
   }
 
-  delay(1000);
+  // Delay for 1 second before the next iteration
+  //delay(2000);
 }
-
