@@ -1,6 +1,10 @@
 #include <Arduino.h>
-#include <librobus.h>
+#include <libRobus.h>
+ 
+const int kHzWhistlePin=A0; 
+const int BruitAmbiantPin=A1;
 
+<<<<<<< Updated upstream
 const int MAP_WIDTH = 3;
 const int MAP_LENGTH = 10;
 
@@ -139,3 +143,156 @@ void loop() {
   delay(500);
 }
 
+=======
+ 
+bool DetectWhistle()
+{
+  bool isRunning = false;
+
+  //lire valeur du microphone
+    float MicrophoneValue=analogRead(kHzWhistlePin);
+ 
+    //lire valeur du bruit ambiant
+    float BruitAmbiantValue=analogRead(BruitAmbiantPin);
+ 
+    float difference = (MicrophoneValue-BruitAmbiantValue); 
+ 
+    if (difference > 50)  
+    {
+      isRunning = true;
+      Serial.println("Whistle detected, GOGOGO !");
+    }
+
+    return isRunning;
+
+}
+
+
+void setup()
+{
+  //Initialise comms pour debuggage
+  Serial.begin(9600); //Devrait-on mettre un temps plus long pour assurer un bon setup?
+ 
+  //Instaurer les pin du arduino qui servent d'INPUT
+  pinMode(kHzWhistlePin, INPUT);
+  pinMode(BruitAmbiantPin, INPUT);
+}
+ 
+void loop ()
+{
+  bool x = DetectWhistle();
+  Serial.println(x);
+
+}
+
+
+
+
+/*
+void loop()
+{
+    //lire valeur du microphone
+    float MicrophoneValue=analogRead(kHzWhistlePin);
+ 
+    //lire valeur du bruit ambiant
+    float BruitAmbiantValue=analogRead(BruitAmbiantPin);
+ 
+    float difference = (MicrophoneValue-BruitAmbiantValue); 
+ 
+    if (difference > 50)  
+    {
+      
+      Serial.println("GOGOGOG");
+    }
+  
+    Serial.println("valeur 5kHz");
+    Serial.println(MicrophoneValue);
+    Serial.println("Valeur Bruit ambiant");
+    Serial.println(BruitAmbiantValue);
+    Serial.println("Difference"); 
+    Serial.println(difference);
+  
+ delay (500);
+} */
+
+
+
+
+/*
+#include <Arduino.h>
+#include <libRobus.h>
+ 
+const int kHzWhistlePin=A0; 
+const int BruitAmbiantPin=A1;
+const int threshold = 50; //La valeur ou on veut dire que le 5khz est detecte
+const int numReadings = 100; //numero de lectures
+bool isRunning = true;
+
+int readings1[numReadings];
+int readings2[numReadings];
+int readIndex = 0;
+int total1 = 0;
+int total2 = 0;
+int average1 = 0;
+int average2 = 0;
+ 
+void setup()
+{
+  //Initialise comms pour debuggage
+  Serial.begin(9600); //Devrait-on mettre un temps plus long pour assurer un bon setup?
+ 
+  //Instaurer les pin du arduino qui servent d'INPUT
+  pinMode(kHzWhistlePin, INPUT);
+  pinMode(BruitAmbiantPin, INPUT);
+
+  //initialiser la matrice a 0
+  for (int i=0; i<numReadings; i++){
+    readings1[i] = 0;
+    readings2[i] = 0;
+  }
+}
+ 
+void loop()
+{
+  //Enleve derniere lecture
+  total1 = total1 - readings1[readIndex];
+  total2 = total2 - readings2[readIndex];
+
+  //Lecture de nouvelle valeurs
+  readings1[readIndex] = analogRead(kHzWhistlePin);
+  readings2[readIndex] = analogRead(BruitAmbiantPin);
+  total1 = total1 + readings1[readIndex];
+  total2 = total2 + readings2[readIndex];
+
+  Serial.println("total1 is:");
+  Serial.println(total1);
+  Serial.println("total2 is:");
+  Serial.println(total2);
+
+  //Avance a nouvelle position de lecture
+  readIndex = readIndex + 1;
+  if(readIndex >= numReadings){
+    readIndex = 0;
+  }
+
+  //calcul des moyenne
+  average1 = total1 / numReadings;
+  average2 = total2 / numReadings;
+
+  Serial.println("average1 is:");
+  Serial.println(average1);
+  Serial.println("average2 is:");
+  Serial.println(average2);
+  Serial.println("NEW TEST \n");
+
+  //check for the 5khz signal based on the averages
+  if (average1 > threshold || average2 > threshold){
+    Serial.println("5khz frequency");
+    delay (500);
+  }
+
+
+delay(1500); 
+ 
+}*/
+>>>>>>> Stashed changes
