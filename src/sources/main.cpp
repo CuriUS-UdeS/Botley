@@ -110,7 +110,7 @@ bool DetectWall() {
 
 void TurnRight()
 {
-  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(0, 0.197);
   MOTOR_SetSpeed(1, -0.2);
   delay(1000);
   MOTOR_SetSpeed(0, 0);
@@ -137,7 +137,7 @@ void TurnRight()
 
 void TurnLeft()
 {
-  MOTOR_SetSpeed(0, -0.2);
+  MOTOR_SetSpeed(0, -0.197);
   MOTOR_SetSpeed(1, 0.2);
   delay(1000);
   MOTOR_SetSpeed(0, 0);
@@ -164,7 +164,7 @@ void TurnLeft()
 
 void TurnAround()
 {
-  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(0, 0.197);
   MOTOR_SetSpeed(1, -0.2);
   delay(2000);
   MOTOR_SetSpeed(0, 0);
@@ -191,9 +191,9 @@ void TurnAround()
 
 void GoForward()
 {
-  MOTOR_SetSpeed(0, 0.2);
+  MOTOR_SetSpeed(0, 0.197);
   MOTOR_SetSpeed(1, 0.2);
-  delay(4600);
+  delay(3000);
   MOTOR_SetSpeed(0, 0);
   MOTOR_SetSpeed(1, 0);
   switch (orientation)
@@ -471,7 +471,7 @@ void setup() {
   pinMode(LEFT_IR_PIN, INPUT);
   pinMode(RIGHT_IR_PIN, INPUT);
 
-  // Hard code of one particular map
+  /* Hard code of one particular map
   TileMap[2][0].top = 1;
   TileMap[0][2].top = 1;
   TileMap[1][2].right = 1;
@@ -486,6 +486,7 @@ void setup() {
   TileMap[1][8].left = 1;
   TileMap[1][8].top = 1;
   TileMap[2][8].down = 1;
+  */
 
   delay(500);
 }
@@ -515,6 +516,7 @@ void loop() {
       newOrientation = FindTheWay();
       if (newOrientation != -1)
         Turn(newOrientation);
+        delay(200);
     }
     // If a valid path is found, adjust the orientation and move forward
     if (newOrientation != -1) {
