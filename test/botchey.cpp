@@ -15,8 +15,8 @@ int coordY = 0;
 int orientation = 2;
 
 // Définition des constantes du PID (0.0007)
-#define KP_RIGHT 0.006
-#define KP_LEFT 0.014
+#define KP_RIGHT 0.02
+#define KP_LEFT 0.006
 #define KI 0.00
 #define KD 0.1
 
@@ -148,7 +148,7 @@ void TurnLeft()
   }
     uint8_t gauche = 0; // Moteur2
     uint8_t droite = 1; // Moteur1
-    int rotation = 1885;
+    int rotation = 1890;
     bool turnCompleted = false;
  
     ENCODER_ReadReset(gauche);
@@ -199,7 +199,7 @@ void TurnAround()
   }
     uint8_t gauche = 0; // Moteur2
     uint8_t droite = 1; // Moteur1
-    int rotation = 3870;
+    int rotation = 3855;
     bool turnCompleted = false;
  
     ENCODER_ReadReset(gauche);
@@ -250,7 +250,7 @@ void TurnRight()
   }
   uint8_t gauche = 0; // Moteur2
   uint8_t droite = 1; // Moteur1
-  int rotation = 1890;
+  int rotation = 1840;
   bool turnCompleted = false;
 
   ENCODER_ReadReset(gauche);
@@ -710,8 +710,6 @@ void setup() {
   TileMap[1][10].left = 1;
   TileMap[1][10].right = 1;
 
-  PrintMap();
-
   delay(500);
 }
 
@@ -748,12 +746,7 @@ void loop() {
     }
     // If a valid path is found, adjust the orientation and move forward
     if (newOrientation != -1) {
-      Serial.println("Go forward 50 cm");
-      if (!isMazeDone)
-        GoForward(50);
-      else
-        GoForward(5000);
+      GoForward(50);
     }
   }
-  
 }
