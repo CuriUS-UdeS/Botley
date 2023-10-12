@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <librobus.h>
 
+const int kHzWhistlePin=A0; 
+const int BruitAmbiantPin=A1;
+
 const int MAP_WIDTH = 3;
 const int MAP_LENGTH = 10;
 
@@ -11,6 +14,22 @@ int coordX = 1;
 int coordY = 0;
 int orientation = 2;
 
+// Définition des constantes du PID (0.0007)
+#define KP_RIGHT 0.006
+#define KP_LEFT 0.014
+#define KI 0.00
+#define KD 0.1
+
+// Définition des autres constantes
+#define WHEEL_DIAMETER 7.62 // 3 pouces convertis en cm
+#define PULSES_PER_REVOLUTION 3200
+#define MAX_SPEED 0.3
+#define MIN_SPEED 0.1
+
+float error_previous = 0;
+float integral = 0;
+
+bool isRunning = false;
 bool isMazeDone = false;
 
 // Une tile se compose de 4 murs, représentés par 0, 1 ou 2.
@@ -108,41 +127,9 @@ bool DetectWall() {
   }
 }
 
-void TurnRight()
-{
-  MOTOR_SetSpeed(0, 0.197);
-  MOTOR_SetSpeed(1, -0.2);
-  delay(1000);
-  MOTOR_SetSpeed(0, 0);
-  MOTOR_SetSpeed(1, 0);
-  switch (orientation)
-  {
-  case 0:
-    orientation = 2;
-    break;
-  case 1:
-    orientation = 3;
-    break;
-  case 2:
-    orientation = 1;
-    break;
-  case 3:
-    orientation = 0;
-    break;
-  default:
-    break;
-  }
-  Serial.println("Turning right !");
-}
-
 void TurnLeft()
 {
-  MOTOR_SetSpeed(0, -0.197);
-  MOTOR_SetSpeed(1, 0.2);
-  delay(1000);
-  MOTOR_SetSpeed(0, 0);
-  MOTOR_SetSpeed(1, 0);
-  switch (orientation)
+   switch (orientation)
   {
   case 0:
     orientation = 3;
@@ -159,16 +146,40 @@ void TurnLeft()
   default:
     break;
   }
-  Serial.println("Turning left !");
+    uint8_t gauche = 0; // Moteur2
+    uint8_t droite = 1; // Moteur1
+    int rotation = 1900;
+    bool turnCompleted = false;
+ 
+    ENCODER_ReadReset(gauche);
+    ENCODER_ReadReset(droite);
+ 
+    Serial.println("Turning right !");
+    
+    while (!turnCompleted) {
+        // Read current encoder positions
+        float pCurrentd = ENCODER_Read(droite);
+        float pCurrentg = ENCODER_Read(gauche);
+        // Apply corrections to motor speeds
+        MOTOR_SetSpeed(droite, 0.2);
+        MOTOR_SetSpeed(gauche, -0.2);
+        // Check if the robot has turned the desired angle
+        if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
+            // Set the flag to indicate that the turn has been completed
+            turnCompleted = true;
+            
+            // Stop the motors
+            MOTOR_SetSpeed(droite, 0);
+            MOTOR_SetSpeed(gauche, 0);
+            
+            Serial.println("Turn completed!");
+        }
+        delay(5);
+    }
 }
 
 void TurnAround()
 {
-  MOTOR_SetSpeed(0, 0.197);
-  MOTOR_SetSpeed(1, -0.2);
-  delay(2000);
-  MOTOR_SetSpeed(0, 0);
-  MOTOR_SetSpeed(1, 0);
   switch (orientation)
   {
   case 0:
@@ -186,17 +197,95 @@ void TurnAround()
   default:
     break;
   }
-  Serial.println("Turning around !");
+    uint8_t gauche = 0; // Moteur2
+    uint8_t droite = 1; // Moteur1
+    int rotation = 3870;
+    bool turnCompleted = false;
+ 
+    ENCODER_ReadReset(gauche);
+    ENCODER_ReadReset(droite);
+ 
+    Serial.println("Turning right !");
+    
+    while (!turnCompleted) {
+        // Read current encoder positions
+        float pCurrentd = ENCODER_Read(droite);
+        float pCurrentg = ENCODER_Read(gauche);
+        // Apply corrections to motor speeds
+        MOTOR_SetSpeed(droite, -0.2);
+        MOTOR_SetSpeed(gauche, 0.2);
+        // Check if the robot has turned the desired angle
+        if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
+            // Set the flag to indicate that the turn has been completed
+            turnCompleted = true;
+            
+            // Stop the motors
+            MOTOR_SetSpeed(droite, 0);
+            MOTOR_SetSpeed(gauche, 0);
+            
+            Serial.println("Turn completed!");
+        }
+    }
+  delay(10);
 }
 
-void GoForward()
+void TurnRight()
 {
-  MOTOR_SetSpeed(0, 0.197);
-  MOTOR_SetSpeed(1, 0.2);
-  delay(3000);
-  MOTOR_SetSpeed(0, 0);
-  MOTOR_SetSpeed(1, 0);
   switch (orientation)
+  {
+  case 0:
+    orientation = 2;
+    break;
+  case 1:
+    orientation = 3;
+    break;
+  case 2:
+    orientation = 1;
+    break;
+  case 3:
+    orientation = 0;
+    break;
+  default:
+    break;
+  }
+  uint8_t gauche = 0; // Moteur2
+  uint8_t droite = 1; // Moteur1
+  int rotation = 1930;
+  bool turnCompleted = false;
+
+  ENCODER_ReadReset(gauche);
+  ENCODER_ReadReset(droite);
+
+  Serial.println("Turning right !");
+  
+  while (!turnCompleted) {
+      // Read current encoder positions
+      float pCurrentd = ENCODER_Read(droite);
+      float pCurrentg = ENCODER_Read(gauche);
+
+      // Apply corrections to motor speeds
+      MOTOR_SetSpeed(droite, -0.2);
+      MOTOR_SetSpeed(gauche, 0.2);
+      // Check if the robot has turned the desired angle
+      if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
+          // Set the flag to indicate that the turn has been completed
+          turnCompleted = true;
+          
+          // Stop the motors
+          MOTOR_SetSpeed(droite, 0);
+          MOTOR_SetSpeed(gauche, 0);
+          
+          Serial.println("Turn completed!");
+      }
+  }
+
+  delay(10);
+}
+
+
+void GoForward(float distance_cm) {
+
+    switch (orientation)
   {
   case 0:
     coordX--;
@@ -217,7 +306,59 @@ void GoForward()
   default:
     break;
   }
-  Serial.println("Moving forward !");
+    int target_pulses = (distance_cm / (PI * WHEEL_DIAMETER)) * PULSES_PER_REVOLUTION;
+    int acceleration_point = target_pulses * 0.25;
+    int deceleration_point = target_pulses * 0.75;
+
+    ENCODER_Reset(0);
+    ENCODER_Reset(1);
+
+    int compteur = 0;
+    integral = 0;
+
+    while(ENCODER_Read(0) < target_pulses && ENCODER_Read(1) < target_pulses) {
+        compteur++;
+        
+        float error_left = target_pulses - ENCODER_Read(0);
+        float error_right = target_pulses - ENCODER_Read(1);
+        integral += (error_left + error_right) / 2;
+
+        float pid_left = KP_LEFT * error_left + KI * integral + KD * (error_left - error_previous);
+        float pid_right = KP_RIGHT * error_right + KI * integral + KD * (error_right - error_previous);
+
+        // Acceleration
+        if (ENCODER_Read(0) < acceleration_point) {
+            float factor = sin(PI/2 * (float)ENCODER_Read(0) / acceleration_point);
+            pid_left *= factor * MAX_SPEED;
+            pid_right *= factor * MAX_SPEED;
+        }
+        // Deceleration
+        else if (ENCODER_Read(0) > deceleration_point) {
+            float factor = sin(PI/2 + PI/2 * (float)(ENCODER_Read(0) - deceleration_point) / (target_pulses - deceleration_point));
+            pid_left *= factor * MAX_SPEED;
+            pid_right *= factor * MAX_SPEED;
+        }
+        else {
+            pid_left *= MAX_SPEED;
+            pid_right *= MAX_SPEED;
+        }
+
+        float correction_left = constrain(pid_left, MIN_SPEED, MAX_SPEED);
+        float correction_right = constrain(pid_right, MIN_SPEED, MAX_SPEED);
+
+        MOTOR_SetSpeed(0, correction_left);
+        MOTOR_SetSpeed(1, correction_right);
+
+        error_previous = (error_left + error_right) / 2;
+
+        // Serial prints for debugging
+        // ... [Your debugging prints]
+
+        delay(10); // Delay for readability
+    }
+
+    MOTOR_SetSpeed(0, 0); // Stop the left motor
+    MOTOR_SetSpeed(1, 0); // Stop the right motor
 }
 
 void Turn(int newOrientation) {
@@ -307,7 +448,24 @@ void Turn(int newOrientation) {
 
 bool DetectWhistle()
 {
-  Serial.println("Whistle detected, GOGOGO !");
+  bool isRunning = false;
+
+  //lire valeur du microphone
+    float MicrophoneValue=analogRead(kHzWhistlePin);
+ 
+    //lire valeur du bruit ambiant
+    float BruitAmbiantValue=analogRead(BruitAmbiantPin);
+ 
+    float difference = (MicrophoneValue-BruitAmbiantValue); 
+ 
+    if (difference > 50)  
+    {
+      isRunning = true;
+      Serial.println("Whistle detected, GOGOGO !");
+    }
+
+    return isRunning;
+
 }
 
 void PrintRobotState() {
@@ -463,6 +621,31 @@ void GenerateMap()
   }
 }
 
+void Reset() {
+  isRunning = false;
+  isMazeDone = false;
+  orientation = 2;
+  coordX = 1;
+  coordY = 0;
+
+  for (int i = 0; i < MAP_WIDTH; i++) {
+    for (int j = 0; j < MAP_LENGTH; j++) {
+        if (TileMap[i][j].top == 2) {
+            TileMap[i][j].top = 0;
+        }
+        if (TileMap[i][j].down == 2) {
+            TileMap[i][j].down = 0;
+        }
+        if (TileMap[i][j].left == 2) {
+            TileMap[i][j].left = 0;
+        }
+        if (TileMap[i][j].right == 2) {
+            TileMap[i][j].right = 0;
+        }
+    }
+  }
+}
+
 void setup() {
   BoardInit();
   GenerateMap();
@@ -471,7 +654,7 @@ void setup() {
   pinMode(LEFT_IR_PIN, INPUT);
   pinMode(RIGHT_IR_PIN, INPUT);
 
-  /* Hard code of one particular map
+  /*
   TileMap[2][0].top = 1;
   TileMap[0][2].top = 1;
   TileMap[1][2].right = 1;
@@ -492,38 +675,39 @@ void setup() {
 }
 
 void loop() {
-
   // Check if the robot has reached the end (coordY == 9)
   if (coordY == 9) {
-    PrintRobotState();
-    PrintMap();
     isMazeDone = true;
-    delay(150000);
+    MOTOR_SetSpeed(0,0);
+    MOTOR_SetSpeed(0,0);
+    MOTOR_SetSpeed(0,0.9);
   }
 
+  /*
+  if(ROBUS_IsBumper(0) == true && ROBUS_IsBumper(1) == true)
+    Reset();
+  */
+
+  if(DetectWhistle() == true)
+    isRunning = true;
+
   // If the maze is not yet complete
-  if (!isMazeDone) {
-    PrintRobotState();
-    PrintMap();
-
+  if (!isMazeDone && isRunning) {
     // Perform actions in a specific order:
-
     int newOrientation;
 
     // Detect if there's a wall or a tape in front of the robot and update the map
     while(DetectWall() == true || CheckForFrontWall() == 1) {
       // Find the new orientation after detecting walls
       newOrientation = FindTheWay();
-      if (newOrientation != -1)
+      if(newOrientation != -1) {
         Turn(newOrientation);
-        delay(200);
+        delay(600);
+      }
     }
     // If a valid path is found, adjust the orientation and move forward
     if (newOrientation != -1) {
-      GoForward();
+      GoForward(50);
     }
   }
-
-  // Delay for 1 second before the next iteration
-  //delay(2000);
 }
