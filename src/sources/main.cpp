@@ -10,6 +10,16 @@ const int MAP_LENGTH = 11;
 const int LEFT_IR_PIN = 24;
 const int RIGHT_IR_PIN = 26;
 
+//suiveur de ligne
+const int SuiveurLigne1 = A0;
+const int SuiveurLigne2 = A1;
+const int SuiveurLigne3 = A2;
+const int SuiveurLigne4 = A3;
+const int SuiveurLigne5 = A4;
+const int SuiveurLigne6 = A5;
+const int SuiveurLigne7 = A6;
+const int SuiveurLigne8 = A7;
+
 int coordX = 1;
 int coordY = 0;
 int orientation = 2;
@@ -43,6 +53,25 @@ struct tile {
 // Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
 tile TileMap[MAP_WIDTH][MAP_LENGTH];
 
+int Suiveur_Ligne (){
+  //float OUT = 0.0;
+  int valeurSuiveurLigne1 = analogRead (SuiveurLigne1);
+  int valeurSuiveurLigne2 = analogRead (SuiveurLigne2);
+  int valeurSuiveurLigne3 = analogRead (SuiveurLigne3);
+  int valeurSuiveurLigne4 = analogRead (SuiveurLigne4);
+  int valeurSuiveurLigne5 = analogRead (SuiveurLigne5);
+  int valeurSuiveurLigne6 = analogRead (SuiveurLigne6);
+  int valeurSuiveurLigne7 = analogRead (SuiveurLigne7);
+  int valeurSuiveurLigne8 = analogRead (SuiveurLigne8);
+
+
+return valeurSuiveurLigne1;
+//return OUT;
+}
+
+
+
+/*
 int CheckForFrontWall() {
   switch (orientation)
     {
@@ -514,8 +543,8 @@ void PrintRobotState() {
   }
 }
 
-// Fonction permettant d'afficher la map dans la console, elle sert seulement pour tester et visualiser.
 void PrintMap() {
+    // Fonction permettant d'afficher la map dans la console, elle sert seulement pour tester et visualiser.
   Serial.println("");
 
   for (int y = MAP_LENGTH - 1; y >= 0; y--) { // Start from the bottom row and go upwards
@@ -565,14 +594,15 @@ void PrintMap() {
   }
 }
 
+
 int FindTheWay() {
-  /*
+  
   int frontWall = CheckForFrontWall();
 
   if(frontWall == 0) {
     return orientation;
   }
-  */
+  
 
   if(TileMap[coordX][coordY].top == 0) {
     return 2;
@@ -664,58 +694,41 @@ void Reset() {
     }
   }
 }
-
+*/
 void setup() {
   BoardInit();
+  
+  //init pin pour suiveur ligne
+  pinMode(SuiveurLigne1, INPUT);
+  pinMode(SuiveurLigne2, INPUT);
+  pinMode(SuiveurLigne3, INPUT);
+  pinMode(SuiveurLigne4, INPUT);
+  pinMode(SuiveurLigne5, INPUT);
+  pinMode(SuiveurLigne6, INPUT);
+  pinMode(SuiveurLigne7, INPUT);
+  pinMode(SuiveurLigne8, INPUT);
+
+  /*
   GenerateMap();
 
   // Initialize the IR pins
   pinMode(LEFT_IR_PIN, INPUT);
   pinMode(RIGHT_IR_PIN, INPUT);
-
-  /*
-  TileMap[2][0].top = 1;
-  TileMap[0][2].top = 1;
-  TileMap[1][2].right = 1;
-  TileMap[1][1].top = 1;
-  TileMap[1][2].down = 1;
-  TileMap[1][4].top = 1;
-  TileMap[1][4].right = 1;
-  TileMap[0][4].down = 1;
-  TileMap[0][6].top = 1;
-  TileMap[1][6].down = 1;
-  TileMap[1][6].right = 1;
-  TileMap[1][8].left = 1;
-  TileMap[1][8].top = 1;
-  TileMap[2][8].down = 1;
   */
 
-  TileMap[1][0].top = 1;
-  TileMap[1][1].down = 1;
-  TileMap[1][1].top = 1;
-  TileMap[1][2].down = 1;
-
-  TileMap[1][2].top = 1;
-  TileMap[1][3].down = 1;
-  TileMap[1][3].top = 1;
-  TileMap[1][4].down = 1;
-
-  TileMap[1][6].top = 1;
-  TileMap[1][7].down = 1;
-  TileMap[1][7].top = 1;
-  TileMap[1][8].down = 1;
-  TileMap[1][8].top = 1;
-  TileMap[1][9].down = 1;
-
-  TileMap[1][10].left = 1;
-  TileMap[1][10].right = 1;
-
-  PrintMap();
 
   delay(500);
 }
 
 void loop() {
+  int valeur = Suiveur_Ligne ();
+  Serial.print (valeur);
+  Serial.println();
+
+  delay(1000);
+
+
+ /* code defi parcours
   // Check if the robot has reached the end (coordY == 9)
   if (coordY == 10 && coordX == 1) {
     isMazeDone = true;
@@ -723,11 +736,6 @@ void loop() {
     delay(600);
     GoForward(3000);
   }
-
-  /*
-  if(ROBUS_IsBumper(0) == true && ROBUS_IsBumper(1) == true)
-    Reset();
-  */
 
   if(DetectWhistle() == true)
     isRunning = true;
@@ -755,5 +763,5 @@ void loop() {
         GoForward(5000);
     }
   }
-  
+*/
 }
