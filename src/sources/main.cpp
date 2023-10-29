@@ -382,8 +382,32 @@ void setup() {
 void loop() {
     if(isRunning)
     {
-        goForward(14, 50000);
-        isRunning = false;
+        int Maxspeed = 17;
+        float DistanceWanted = 80; 
+        float acc = 0.1;
+        float decel = 0.1;
+
+        for (int i = 0; i <= (Maxspeed); i++)
+        {
+            goForward(i, acc);
+   
+        }
+
+    // 1 boucle -- DistanceWanted - (Maxspeed*distanceWanted/16)
+
+        goForward(Maxspeed,  DistanceWanted - ((acc + decel)*Maxspeed));
+
+
+        for (int j = Maxspeed; j > -1; j--)
+        {
+            goForward(j, decel);
+   
+        }
+    MOTOR_SetSpeed(0, 0);
+    MOTOR_SetSpeed(1, 0);
+    
+    isRunning = false;
+
     }
     /*
     MOTOR_SetSpeed(0,0.5);
