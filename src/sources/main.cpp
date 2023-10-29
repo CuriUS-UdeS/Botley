@@ -8,15 +8,21 @@
 #define EMITTER_PIN             QTR_NO_EMITTER_PIN  // emitter is controlled by digital pin 2
 
 // sensors 1 through 8 are connected to analog inputs 0 through 7, respectively
-QTRSensorsAnalog qtra((unsigned char[]) {A0, A1, A2, A3, A4, A5, A6, A7}, NUM_SENSORS, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
+QTRSensorsAnalog qtra((unsigned char[]) {A1, A2, A4, A5, A6, A7, A8, A9}, NUM_SENSORS, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
 unsigned int sensorValues[NUM_SENSORS];
 
+
 // PID Properties
-const double KP = 0.0003;
-const double KD = 0.0;
-double lastError = 0;
-const int GOAL = 3500; //au millieu du board capteur 4 & 5, lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
-const unsigned char MAX_SPEED = 0.8;
+const double KP   = 0.00005;
+const double KI = 0.00003;
+const double KD   = 0.000001;
+double lastError  = 0.0;
+double integral = 0.0;
+float integralMin = -10000.0;
+float integralMax = 10000.0;
+
+const float GOAL    = 3500; //au millieu du board capteur 4 & 5, lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
+const double MAX_SPEED = 0.25;
 
 //moteurs
 const int gauche = 0;
@@ -136,40 +142,155 @@ void calibrateLineSensor(){
     Serial.print(' ');
   }
   Serial.println();
-  Serial.println();
 }
 
+void manualCalibrateLineSensor(){
+  Serial.print("   manuel calib   ");
+  unsigned int minValues[NUM_SENSORS] = {49, 35, 35, 35, 31, 29, 30, 29};
+  unsigned int maxValues[NUM_SENSORS] = {873, 682, 691, 676, 575, 669, 486, 847}; 
+  
+  qtra.calibrate(); 
+
+  for (int i = 0; i < NUM_SENSORS; i++)
+  {
+    Serial.print(i);
+    qtra.calibratedMinimumOn[i] = minValues[i];
+    Serial.print("   finforloop1   ");
+  }
+  
+  for (int j = 0; j < NUM_SENSORS; j++)
+  {
+    
+    Serial.print(j);
+    qtra.calibratedMaximumOn[j] = maxValues[j];
+    Serial.print("   finforloop2   ");
+  }
+
+}
+
+
+
+void displayValues(){
+  Serial.print("   display calib   ");
+  for (int i = 0; i < NUM_SENSORS; i++){
+    Serial.print(qtra.calibratedMaximumOn[i]);
+    Serial.println();
+    Serial.print(qtra.calibratedMinimumOn[i]);
+    Serial.println();
+  }
+}
+
+void litAnalogIn(){
+  //fonction pour tester les valeurs 
+  int A = analogRead(A1);
+  int B = analogRead(A2);
+  int C = analogRead(A4);
+  int D = analogRead(A5);
+  int E = analogRead(A6);
+  int F = analogRead(A7);
+  int G = analogRead(A8);
+  int H = analogRead(A9);
+
+  Serial.print("A: "); Serial.println(A);
+  Serial.print("B: "); Serial.println(B);
+  Serial.print("C: "); Serial.println(C);
+  Serial.print("D: "); Serial.println(D);
+  Serial.print("E: "); Serial.println(E);
+  Serial.print("F: "); Serial.println(F);
+  Serial.print("G: "); Serial.println(G);
+  Serial.print("H: "); Serial.println(H);
+
+}
+
+void PIDLigne(float error, float adjustment){
+  //acumulate error
+  integral += error;
+if (abs(error < 500)){
+  integral = 0.0;
+}
+else if (integral > integralMax) {
+    integral = integralMax;
+}
+else if (integral < integralMin) {
+    integral = integralMin;
+}
+
+  //calculate adjustment (new motor speed)
+  adjustment = KP*error + KI*(integral) + KD*(error - lastError);
+  
+  // Store error for next increment
+  lastError = error;
+
+  //MOTOR_SetSpeed(gauche, 0.4);
+  //MOTOR_SetSpeed(droite, 0.4);
+  //set les vitesses du moteur
+  MOTOR_SetSpeed(gauche, (constrain(MAX_SPEED - adjustment, 0, MAX_SPEED)));
+  MOTOR_SetSpeed(droite, (constrain(MAX_SPEED + adjustment, 0, MAX_SPEED)));
+
+
+}
 void setup() {
+  Serial.begin(9600);
+  Serial.print("allo je commence");
+ 
   BoardInit();
-  //initialise line sensor array
-  calibrateLineSensor();
-  delay(500);
+  Serial.println(" Board init finit");
+  MOTOR_SetSpeed(gauche, 0);
+  MOTOR_SetSpeed(droite, 0);
+ 
+ //Calibration du capteur
+  //calibrateLineSensor();              //Automatique
+  manualCalibrateLineSensor();        //Manuel
+  Serial.println("Calibrate finit");  //Debug
+  
+  //displayValues();
 }
 
 void loop() {
   // Get line position
-  unsigned int position = qtra.readLine(sensorValues); //lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
-
-  Serial.print(position);
-  Serial.println();
-
-
-
-
-  /* CODE POUR QUAND J'AI LE ROBOT
-  // Compute error
-  int error = GOAL - position;
-
-  // Compute motor adjustment
-  int adjustment = KP*error + KD*(error - lastError);
- 
-  // Store error for next increment
-  lastError = error;
+  //litAnalogIn();
   
-  //set les vitesses du moteur
-  MOTOR_SetSpeed(gauche, (constrain(MAX_SPEED - adjustment, 0, MAX_SPEED)));
-  MOTOR_SetSpeed(droite, (constrain(MAX_SPEED + adjustment, 0, MAX_SPEED)));
- */
+  int position = qtra.readLine(sensorValues); //lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
 
-  delay(1000);
-}
+  //Serial.print(position);
+  //Serial.println();
+  
+
+  //CODE POUR PID
+  // Compute error
+  float error = GOAL - position;
+  float adjustment = 0;
+  // Compute motor adjustment
+ /* 
+  if (position == 7000){
+    MOTOR_SetSpeed(gauche, 0.1);
+    MOTOR_SetSpeed(droite, 0.2);
+  }
+  else if (position == 0){
+    MOTOR_SetSpeed(gauche, 0.2);
+    MOTOR_SetSpeed(droite, 0.1);
+  }
+  else  if(position > 0 && position < 7000) {
+    
+
+  }
+*/
+  
+  PIDLigne(error, adjustment);
+
+  Serial.print("Integral: ");
+  Serial.println(integral);
+  Serial.print("Error: ");
+  Serial.println(error);
+  Serial.print("Adjustment: ");
+  Serial.println(adjustment);
+  /*
+  Serial.print("Position: ");
+  Serial.println(position);
+  Serial.print("Error: ");
+  Serial.println(error);
+  Serial.print("Adjustment: ");
+  Serial.println(adjustment);
+  */
+
+  }
