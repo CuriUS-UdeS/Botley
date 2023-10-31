@@ -13,16 +13,23 @@ unsigned int sensorValues[NUM_SENSORS];
 
 
 // PID Properties
-const double KP   = 0.00005;
-const double KI = 0.00003;
-const double KD   = 0.000001;
+const double KP   = 0.00008;
+const double KI   = 0.00003;
+const double KD   = 0.12  ; //0.000001;
+
+float error      = 0;
+float adjustment  = 0;
+//derivate
 double lastError  = 0.0;
-double integral = 0.0;
+//integral
+double integral   = 0.0;
 float integralMin = -10000.0;
 float integralMax = 10000.0;
 
-const float GOAL    = 3500; //au millieu du board capteur 4 & 5, lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
-const double MAX_SPEED = 0.25;
+const float GOAL = 3500; //au millieu du board capteur 4 & 5, lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
+const double MAX_SPEED = 0.5;
+const double MIN_SPEED = 0.0;
+
 
 //moteurs
 const int gauche = 0;
@@ -146,24 +153,24 @@ void calibrateLineSensor(){
 
 void manualCalibrateLineSensor(){
   Serial.print("   manuel calib   ");
-  unsigned int minValues[NUM_SENSORS] = {49, 35, 35, 35, 31, 29, 30, 29};
-  unsigned int maxValues[NUM_SENSORS] = {873, 682, 691, 676, 575, 669, 486, 847}; 
+  unsigned int minValues[NUM_SENSORS] = {33, 32, 31, 33, 30, 28, 30, 27,};
+  unsigned int maxValues[NUM_SENSORS] = {880, 701, 745, 743, 713, 798, 693, 837}; 
   
   qtra.calibrate(); 
 
   for (int i = 0; i < NUM_SENSORS; i++)
   {
-    Serial.print(i);
+    //Serial.print(i);
     qtra.calibratedMinimumOn[i] = minValues[i];
-    Serial.print("   finforloop1   ");
+   //Serial.print("   finforloop1   ");
   }
   
   for (int j = 0; j < NUM_SENSORS; j++)
   {
     
-    Serial.print(j);
+    //Serial.print(j);
     qtra.calibratedMaximumOn[j] = maxValues[j];
-    Serial.print("   finforloop2   ");
+    //Serial.print("   finforloop2   ");
   }
 
 }
@@ -199,21 +206,22 @@ void litAnalogIn(){
   Serial.print("F: "); Serial.println(F);
   Serial.print("G: "); Serial.println(G);
   Serial.print("H: "); Serial.println(H);
+  Serial.println();
 
 }
 
-void PIDLigne(float error, float adjustment){
-  //acumulate error
-  integral += error;
-if (abs(error < 500)){
-  integral = 0.0;
-}
-else if (integral > integralMax) {
-    integral = integralMax;
-}
-else if (integral < integralMin) {
-    integral = integralMin;
-}
+void PIDLigne(){
+  //acumulate error if not in weird state
+
+  if (abs(error) > 3000){
+    integral = 0.0;
+  }
+  else if (abs(error) < 3000){
+    integral += error;
+  }
+  //Constrait integral
+  integral = constrain (integral, integralMin, integralMax);
+
 
   //calculate adjustment (new motor speed)
   adjustment = KP*error + KI*(integral) + KD*(error - lastError);
@@ -224,8 +232,8 @@ else if (integral < integralMin) {
   //MOTOR_SetSpeed(gauche, 0.4);
   //MOTOR_SetSpeed(droite, 0.4);
   //set les vitesses du moteur
-  MOTOR_SetSpeed(gauche, (constrain(MAX_SPEED - adjustment, 0, MAX_SPEED)));
-  MOTOR_SetSpeed(droite, (constrain(MAX_SPEED + adjustment, 0, MAX_SPEED)));
+  MOTOR_SetSpeed(gauche, (constrain(MAX_SPEED - adjustment, MIN_SPEED, MAX_SPEED)));
+  MOTOR_SetSpeed(droite, (constrain(MAX_SPEED + adjustment, MIN_SPEED, MAX_SPEED)));
 
 
 }
@@ -239,7 +247,8 @@ void setup() {
   MOTOR_SetSpeed(droite, 0);
  
  //Calibration du capteur
-  //calibrateLineSensor();              //Automatique
+  //calibrateLineSensor(); Serial.println("Displaying values"); displayValues(); //Automatique
+
   manualCalibrateLineSensor();        //Manuel
   Serial.println("Calibrate finit");  //Debug
   
@@ -250,16 +259,16 @@ void loop() {
   // Get line position
   //litAnalogIn();
   
-  int position = qtra.readLine(sensorValues); //lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
-
-  //Serial.print(position);
-  //Serial.println();
-  
-
+  //uncomment
+    int position = qtra.readLine(sensorValues); //lit dequoi entre 0 et 7000 nous on veut [etre au centre donc 3500
+      //Serial.print("position: ");
+      //Serial.println(position);
+    // Compute error
+    error = GOAL - position;
+    PIDLigne();
+    Serial.println(error);
   //CODE POUR PID
-  // Compute error
-  float error = GOAL - position;
-  float adjustment = 0;
+
   // Compute motor adjustment
  /* 
   if (position == 7000){
@@ -276,17 +285,12 @@ void loop() {
   }
 */
   
-  PIDLigne(error, adjustment);
+  
 
+
+  /*
   Serial.print("Integral: ");
   Serial.println(integral);
-  Serial.print("Error: ");
-  Serial.println(error);
-  Serial.print("Adjustment: ");
-  Serial.println(adjustment);
-  /*
-  Serial.print("Position: ");
-  Serial.println(position);
   Serial.print("Error: ");
   Serial.println(error);
   Serial.print("Adjustment: ");
