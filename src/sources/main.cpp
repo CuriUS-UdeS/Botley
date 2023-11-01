@@ -20,6 +20,7 @@ int orientation = 2;
 #define KI 0.00
 #define KD 0.1
 
+<<<<<<< Updated upstream
 // Définition des autres constantes
 #define WHEEL_DIAMETER 7.62 // 3 pouces convertis en cm
 #define PULSES_PER_REVOLUTION 3200
@@ -38,6 +39,49 @@ struct tile {
   int down;
   int left;
   int right;
+=======
+// distance from wall
+#define GREEN_DISTANCE 220
+#define YELLOW_DISTANCE 92
+#define BLUE_DISTANCE 380
+
+// WALL PID CONSTANTS AND VARIABLES
+const int stackSize = 4;
+int stack[stackSize] = {0, 0, 0, 0};
+int top = 3;
+
+const float KP = 0.0025;//0.0025;//0.0012;
+const float KI = 0.000001;//0.00001;//0.0002 ;
+const float KD = 0.012 ;//0.04;//0.003 ; //0.008; //0.002;
+const float MAX_SPEED_IN_INCHES = 34.5;
+const float MAX_SPEED = 0.5;
+const float DISTANCE_PER_PULSE = M_PI*WHEEL_DIAMETER/PULSE_PER_ROTATION; // La distance en pouce fait avec un pulse
+float integralLineFollowing = 0;
+float lastErrorLineFollowing = 0;
+uint16_t lastPv = -1;
+
+
+// GLOBAL VARIABLES
+int actualStep = 0;
+String actualColor;
+float startDistance;
+bool isRunning = true;
+
+// MOTORS PID VALUES
+
+struct PIDValues {
+    float kp;
+    float ki;
+    float antiWindupGain;
+    float kd;
+    float dt;
+    float ti;
+    float error;
+    float sp;
+    float pv;
+    float output;
+    float integral;
+>>>>>>> Stashed changes
 };
 
 // Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
@@ -313,6 +357,185 @@ void GoForward(float distance_cm) {
     int acceleration_point = target_pulses * 0.25;
     int deceleration_point = target_pulses * 0.75;
 
+<<<<<<< Updated upstream
+=======
+    else if (r > 55 && r < 75 && g > 75 && g < 95 && b > 75 && b < 90 && c > 225 && c < 280)
+    {
+        Serial.println("carpet");
+        return "carpet";
+    }
+    else {
+        Serial.println("wth");
+        return "wth";
+    }
+}
+
+void followWall(float sp, float speed) {    
+    
+    stack[3] = stack[2];
+    stack[2] = stack[1];
+    stack[1] = stack[0];
+    stack[0] = ROBUS_ReadIR(3);
+
+    int pv = (stack[3]+stack[2]+stack[1]+stack[0])/4;
+    
+    //int pv = ROBUS_ReadIR(3);
+    float error = sp - pv;
+ 
+    
+    if (abs(error) < 100){
+        integralLineFollowing += 0-error;
+    }
+    else if (abs(error) > 100){
+        integralLineFollowing = 0;
+    }
+   integralLineFollowing = constrain(integralLineFollowing,0, 10000);
+
+   float output = KP*error + KI*integralLineFollowing + KD*(error - lastErrorLineFollowing);
+
+    
+    MOTOR_SetSpeed(0, constrain(speed + output, 0.1 , speed+0.3));
+    MOTOR_SetSpeed(1, constrain(speed - output, 0.1 , speed+0.3));
+    
+   // Serial.println (pv);
+
+    lastErrorLineFollowing = error;
+}
+
+float getLeftSpeed() {
+    static unsigned long lastTime = 0;
+    static float lastPulse = 0.0;
+    unsigned long currentTime = micros();
+    float currentPulse = ENCODER_Read(0);
+    
+    // Calculate the differences
+    unsigned long timeDifference = currentTime - lastTime;
+    if (currentTime < lastTime) { // Handle overflow
+        timeDifference = currentTime + (ULONG_MAX - lastTime) + 1;
+    }
+    float pulseDifference = currentPulse - lastPulse;
+    
+    // Calculate speed, checking for division by zero
+    float speed = 0.0;
+    if (timeDifference > 0) {
+        speed = (pulseDifference * DISTANCE_PER_PULSE * 1000000.0) / timeDifference;
+    }
+    
+    // Update the static variables for the next call
+    lastTime = currentTime;
+    lastPulse = currentPulse;
+    
+    return speed; // Speed is in inches per second, assuming DISTANCE_PER_PULSE is in inches.
+}
+
+float getRightSpeed() {
+    static unsigned long lastTime = 0;
+    static float lastPulse = 0.0;
+    unsigned long currentTime = micros();
+    float currentPulse = ENCODER_Read(1);
+    
+    // Calculate the differences
+    unsigned long timeDifference = currentTime - lastTime;
+    if (currentTime < lastTime) { // Handle overflow
+        timeDifference = currentTime + (ULONG_MAX - lastTime) + 1;
+    }
+    float pulseDifference = currentPulse - lastPulse;
+    
+    // Calculate speed, checking for division by zero
+    float speed = 0.0;
+    if (timeDifference > 0) {
+        speed = (pulseDifference * DISTANCE_PER_PULSE * 1000000.0) / timeDifference;
+    }
+    
+    // Update the static variables for the next call
+    lastTime = currentTime;
+    lastPulse = currentPulse;
+    
+    return speed; // Speed is in inches per second, assuming DISTANCE_PER_PULSE is in inches.
+}
+// Function to update the robot's position and orientation
+void updateRobotPositionAndOrientation() {
+    float leftDistance = getDistanceTraveledLeft();
+    float rightDistance = getDistanceTraveledRight();
+    // Calculate the change in orientation
+    float angleVariation = getAngleVariation(leftDistance,rightDistance);
+    float newOrientation = bot.orientation + angleVariation;
+
+    // Update the robot's orientation
+    bot.orientation = newOrientation;
+
+    
+    // Normalize the orientation to keep it between -PI and PI
+    /*
+    while (bot.orientation > M_PI) bot.orientation -= 2 * M_PI;
+    while (bot.orientation < -M_PI) bot.orientation += 2 * M_PI;
+    */
+    
+    // Calculate the average distance traveled
+    float avgDistance = (leftDistance + rightDistance) / 2.0;
+
+    // Update the robot's position
+    bot.xPosition += avgDistance * cos(bot.orientation);
+    bot.yPosition += avgDistance * sin(bot.orientation);
+    
+}
+
+void calculPID(PIDValues &values)
+{
+    values.dt = (millis() - values.ti)/1000;
+    values.error = values.sp - values.pv;
+    
+    //if(abs(values.error) < 1)
+        values.integral += values.error * values.dt;
+    //if(abs(values.error) > 1)
+    //    values.integral = 1;
+    
+    values.integral = constrain(values.integral, -10,10);
+
+    if(abs(values.error) < 1)
+        values.integral += values.error * values.dt;
+    if(abs(values.error) > 1)
+        values.integral = 0;
+
+    /*
+    if (values.pv < values.sp && values.pv > 3.45) {
+        values.integral += values.error * values.dt;
+
+    if (values.pv > values.sp) {
+        values.integral -= (values.pv - values.sp) * values.antiWindupGain;
+    }
+    else if (values.pv < 3.45) {
+        values.integral += (3.45 - values.pv) * values.antiWindupGain;
+    }
+    */
+
+    values.output = (values.kp*values.error) + (values.integral * values.ki);
+    values.ti = millis();
+
+    updateRobotPositionAndOrientation();
+}
+
+void leftPID(float sp) {
+    leftPIDValues.sp = sp;
+    leftPIDValues.pv = getLeftSpeed();
+    calculPID(leftPIDValues);
+    MOTOR_SetSpeed(0, constrain((leftPIDValues.pv/MAX_SPEED_IN_INCHES + leftPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.8));
+}
+
+void rightPID(float sp) {
+    rightPIDValues.sp = sp;
+    rightPIDValues.pv = getRightSpeed();
+    calculPID(rightPIDValues);
+    MOTOR_SetSpeed(1, constrain((rightPIDValues.pv/MAX_SPEED_IN_INCHES + rightPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.8));
+}
+
+float getDistanceTraveled(int encoder_channel) {
+    return ENCODER_Read(encoder_channel) * DISTANCE_PER_PULSE;
+}
+
+void goForward(float speed, float distance) {
+    // Reset encoders
+>>>>>>> Stashed changes
     ENCODER_Reset(0);
     ENCODER_Reset(1);
 
@@ -716,6 +939,7 @@ void setup() {
 }
 
 void loop() {
+<<<<<<< Updated upstream
   // Check if the robot has reached the end (coordY == 9)
   if (coordY == 10 && coordX == 1) {
     isMazeDone = true;
@@ -757,3 +981,35 @@ void loop() {
   }
   
 }
+=======
+
+followWall(GREEN_DISTANCE, 0.25);
+
+/*
+float distance = ROBUS_ReadIR(3);
+Serial.println(distance);
+delay(200);
+*/
+
+/*
+    switch (actualStep)
+    {   
+        case 0:
+            actualColor = findColor();
+            startDistance = ROBUS_ReadIR(3);
+            bot.orientation = 0;
+            actualStep++;
+            break;
+        case 1:
+            move(29, 12, 0, -M_PI, 1);
+            Serial.println(bot.orientation);
+            break;
+        case 2:
+            followWall(GREEN_DISTANCE, 0.29);
+            break;
+        default:
+            break;
+    }
+*/
+}
+>>>>>>> Stashed changes
