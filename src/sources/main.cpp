@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include <LibRobus.h>
 #include <Wire.h>
-#include <Adafruit_TCS34725.h>
 #include <math.h>
 #include <limits.h>
+#include <SharpIR.h>
 
 // PINS CONSTANTS
 
@@ -11,9 +11,6 @@ const int RIGHT_RED_IR_PIN = 40;
 const int RIGHT_GREEN_IR_PIN = 41;
 const int LEFT_RED_IR_PIN = 42;
 const int LEFT_GREEN_IR_PIN = 43;
-
-uint16_t r, g, b, c;
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
 // ROBOT CONSTANTS
 
@@ -27,14 +24,17 @@ Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS3472
 #define YELLOW_DISTANCE 92
 #define BLUE_DISTANCE 380
 
+
 // WALL PID CONSTANTS AND VARIABLES
+SharpIR sharp(A3, 1080);
+
 const int stackSize = 4;
 int stack[stackSize] = {0, 0, 0, 0};
 int top = 3;
 
-const float KP = 0.1;
-const float KI = 0.00;
-const float KD = 0.0;
+const float KP = 0.003; 
+const float KI = 0.000;
+const float KD = 0.00001;
 const float MAX_SPEED_IN_INCHES = 34.5;
 const float MAX_SPEED = 0.5;
 const float DISTANCE_PER_PULSE = M_PI*WHEEL_DIAMETER/PULSE_PER_ROTATION; // La distance en pouce fait avec un pulse
@@ -204,63 +204,6 @@ void turn60(uint8_t direction) {
   delay(10);
 }
 
-String detectColor() {
-    r = tcs.read16(TCS34725_RDATAL);
-    g = tcs.read16(TCS34725_GDATAL);
-    b = tcs.read16(TCS34725_BDATAL);
-    c = tcs.read16(TCS34725_CDATAL);
-
-    tcs.getRawData(&r, &g, &b, &c);
-    
-    Serial.print("R: "); Serial.print(r, DEC); Serial.print(" ");
-    Serial.print("G: "); Serial.print(g, DEC); Serial.print(" ");
-    Serial.print("B: "); Serial.print(b, DEC); Serial.print(" ");
-    Serial.print("C: "); Serial.print(c, DEC); Serial.print(" ");
-    Serial.println(" ");
-    
-  
-       // Add a delay to control the update rate (in milliseconds)
-    delay(100);
-    
-  
-    if (r > 70 && r < 90 && g > 65 && g < 75 && b > 65 && b < 80 && c > 230 && c < 250){
-        Serial.println("red");
-        return "red";
-    }
-    else if (r > 145 && r < 160 && g > 140 && g < 150 && b > 85 && b < 105 && c > 400 && c < 445)
-    {
-        Serial.println("yellow");
-        return "yellow";
-    }
-    else if (r > 40 && r < 50 && g > 70 && g < 80 && b > 70 && b < 90 && c > 200 && c < 240)
-    {
-        Serial.println("blue");
-        return "blue";
-    }
-    
-    else if (r > 45 && r < 60 && g > 75 && g < 90 && b > 65 && b < 90 && c > 220 && c < 245)
-    {
-        Serial.println("green");
-        return "green";
-    }
-    
-    else if (r > 175 && r < 190 && g > 185 && g < 200 && b > 165 && b < 180 && c > 540 && c < 590)
-    {
-        Serial.println("white");
-        return "white";
-    }
-
-    else if (r > 55 && r < 75 && g > 75 && g < 95 && b > 75 && b < 90 && c > 225 && c < 280)
-    {
-        Serial.println("carpet");
-        return "carpet";
-    }
-    else {
-        Serial.println("wth");
-        return "wth";
-    }
-}
-
 float getLeftSpeed() {
     static unsigned long lastTime = 0;
     static float lastPulse = 0.0;
@@ -392,7 +335,37 @@ float getDistanceTraveled(int encoder_channel) {
     return ENCODER_Read(encoder_channel) * DISTANCE_PER_PULSE;
 }
 
-void followWall(float spPourcentage, float MaxSpeed) {  //@brief sPour : setpoint en %, MaxSpeed est la vitesse voulue
+void followWall(float sp, float speed) {  //@brief sPour : setpoint en %, MaxSpeed est la vitesse voulue
+    /*
+    stack[3] = stack[2];
+    stack[2] = stack[1];
+    stack[1] = stack[0];
+    stack[0] = sharp.distance();
+
+    int pv = (stack[3]+stack[2]+stack[1]+stack[0])/4;
+    */
+    //Serial.print("pv: "); Serial.print(pv); 
+    int pv = sharp.distance();
+
+    float error = sp - pv;
+    //Serial.print("error: "); Serial.print(error); Serial.println();
+
+    float output = KP*error + KI*lastErrorLineFollowing + KD*(error - lastErrorLineFollowing);
+     
+    if (error < 50){
+        lastErrorLineFollowing += error;
+    }
+    if (error > 50){
+        lastErrorLineFollowing = 0;
+    }
+    lastErrorLineFollowing = constrain(lastErrorLineFollowing, -1000, 1000);
+
+    
+    MOTOR_SetSpeed(0, constrain(speed - output, 0, 1));
+    MOTOR_SetSpeed(1, constrain((speed + output), 0, 1));
+    
+    
+   
 
 
     /* Filtre numerique
@@ -404,14 +377,20 @@ void followWall(float spPourcentage, float MaxSpeed) {  //@brief sPour : setpoin
     int pv = (stack[3]+stack[2]+stack[1]+stack[0])/4;
     */
 
-   //lecture de la distance 
-    int pvBrute = ROBUS_ReadIR(3); //retourne lecture analogique donc 0 a 1023
-    //convertie en %
-    int pvPourcentage = ((100/1023) * pvBrute) ;
 
+/*Cascade
+   //lecture de la distance 
+    int pvcm = sharp.distance(); //retourne lecture analogique donc 0 a 1023
+    Serial.print(" ");
+    //convertie en %
+    int pvPourcentage = (10/7*pvcm - (100/7));
+    Serial.println("pv: ");
+    Serial.print(pvPourcentage);
     //calcul l'erreur
     float error = spPourcentage - pvPourcentage;
- 
+    
+    Serial.println("erreur: ");
+    Serial.print(error);
     //integral
     if (abs(error) < 50)
         integralLineFollowing += 0 + error;
@@ -421,6 +400,10 @@ void followWall(float spPourcentage, float MaxSpeed) {  //@brief sPour : setpoin
     
     //calcul de l'ajustement
    float OUTLineFollowing = KP*error + KI*integralLineFollowing + KD*(error - lastErrorLineFollowing);
+    OUTLineFollowing = constrain(OUTLineFollowing, 0, 100);
+   
+    Serial.println("out: ");
+    Serial.print(OUTLineFollowing);
 
     //sauvegarde pour la derivee
     lastErrorLineFollowing = error;
@@ -430,8 +413,9 @@ void followWall(float spPourcentage, float MaxSpeed) {  //@brief sPour : setpoin
     OutLineFollowingspeedInches = constrain(OutLineFollowingspeedInches, 0, 34.5);
 
     //correction low-level
-    leftPID(constrain(MaxSpeed + OutLineFollowingspeedInches, 0, 34.5));
-    rightPID(constrain(MaxSpeed - OutLineFollowingspeedInches, 0, 34.5));
+    leftPID(constrain(MaxSpeed - OutLineFollowingspeedInches, 0, 34.5));
+    rightPID(constrain(MaxSpeed + OutLineFollowingspeedInches, 0, 34.5));
+*/
 }
 
 void goForward(float speed, float distance) {
@@ -596,6 +580,8 @@ void move(float radius, float cruisingSpeed, float distance,float finishAngle, i
 void setup() {
     BoardInit();
     initializeServos();
+
+
     pinMode(RIGHT_GREEN_IR_PIN, INPUT);
     pinMode(RIGHT_RED_IR_PIN, INPUT);
     pinMode(LEFT_GREEN_IR_PIN, INPUT);
@@ -612,7 +598,7 @@ void setup() {
 
 void loop() {
 
-followWall(30, 15);
+//followWall(30, 0.6);
 
 /*
 float distance = ROBUS_ReadIR(3);
@@ -620,7 +606,7 @@ Serial.println(distance);
 delay(200);
 */
 
-/*
+
     switch (actualStep)
     {   
         case 0:
@@ -634,10 +620,10 @@ delay(200);
             Serial.println(bot.orientation);
             break;
         case 2:
-            followWall(GREEN_DISTANCE, 0.29);
+            followWall(30, 0.29);
             break;
         default:
             break;
     }
-*/
+
 }
