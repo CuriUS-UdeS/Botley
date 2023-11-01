@@ -3,37 +3,54 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 #include <math.h>
+#include <limits.h>
 
-#define WHEEL_DIAMETER  3
-#define PULSE_PER_ROTATION 3200
+// PINS CONSTANTS
 
-#define GREEN_DISTANCE 200
-#define YELLOW_DISTANCE 90
-#define BLUE_DISTANCE 380
+const int RIGHT_RED_IR_PIN = 40;
+const int RIGHT_GREEN_IR_PIN = 41;
+const int LEFT_RED_IR_PIN = 42;
+const int LEFT_GREEN_IR_PIN = 43;
 
 uint16_t r, g, b, c;
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
+// ROBOT CONSTANTS
 
-const float KP = 0.02;
+#define WHEEL_DIAMETER  3
+#define PULSE_PER_ROTATION 3200
+#define WHEEL_BASE_WIDTH 7.375
+#define WHEELS_RADIUS 7.375/2
+
+// distance from wall
+#define GREEN_DISTANCE 200
+#define YELLOW_DISTANCE 90
+#define BLUE_DISTANCE 380
+
+// WALL PID CONSTANTS AND VARIABLES
+
+const float KP = 0.0009;
 const float KI = 0.0;
 const float KD = 0.002;
 const float MAX_SPEED_IN_INCHES = 34.5;
 const float MAX_SPEED = 0.5;
-
-bool isRunning = true;
-
-int actualStep = 1;
-String actualColor;
+const float DISTANCE_PER_PULSE = M_PI*WHEEL_DIAMETER/PULSE_PER_ROTATION; // La distance en pouce fait avec un pulse
 
 float lastErrorLineFollowing = 0;
 uint16_t lastPv = -1;
 
-float pulseInDistance = M_PI*WHEEL_DIAMETER/PULSE_PER_ROTATION; // La distance en pouce fait avec un pulse
+// GLOBAL VARIABLES
+int actualStep = 0;
+String actualColor;
+float startDistance;
+bool isRunning = true;
+
+// MOTORS PID VALUES
 
 struct PIDValues {
     float kp;
     float ki;
+    float antiWindupGain;
     float kd;
     float dt;
     float ti;
@@ -44,13 +61,47 @@ struct PIDValues {
     float integral;
 };
 
-PIDValues rightPIDValues = {0.6, 0.1};
-PIDValues leftPIDValues = {0.6, 0.2};
+PIDValues rightPIDValues = {6.65, 0.8, 0.0};
+PIDValues leftPIDValues = {6.65, 0.8, 0.0};
 PIDValues mainPIDValues;
+
+struct Robot {
+    float orientation;
+    float leftMotorSpeed;
+    float rightMotorSpeed;
+    float xPosition;
+    float yPosition;
+};
+
+Robot bot;
+
+float getDistanceTraveledRight() {
+    static float pastPulse = 0.0;
+    float presentPulse = ENCODER_Read(1);
+    float distanceTraveled = (presentPulse-pastPulse)*DISTANCE_PER_PULSE;
+    pastPulse = presentPulse;
+    return distanceTraveled;
+}
+
+float getDistanceTraveledLeft() {
+    static float pastPulse = 0.0;
+    float presentPulse = ENCODER_Read(0);
+    float distanceTraveled = (presentPulse-pastPulse)*DISTANCE_PER_PULSE;
+    pastPulse = presentPulse;
+    return distanceTraveled;
+}
+
+float getDistanceTraveled(float leftDistance, float rightDistance) {
+    return (rightDistance+leftDistance)/2;
+}
+
+float getAngleVariation(float leftDistance, float rightDistance) {
+    return (rightDistance - leftDistance)/(2*WHEELS_RADIUS);
+}
 
 void displayPIDValues(PIDValues values)
 {
-   /*
+    /*
     Serial.print("Kp : ");
     Serial.print(values.kp, 5);
     Serial.print("\t Ki : ");
@@ -66,10 +117,11 @@ void displayPIDValues(PIDValues values)
     Serial.print("\t Sp : ");
     Serial.print(values.sp, 5);
     Serial.print("\t Pv : ");
-   
+    */
 
-    Serial.print(values.pv, 5);
+    //Serial.println(values.pv, 5);
 
+    /*
     Serial.print("\t Error : ");
     Serial.print(values.error, 5);
     Serial.print("\t Output : ");
@@ -78,7 +130,6 @@ void displayPIDValues(PIDValues values)
     Serial.print(constrain((values.pv/MAX_SPEED_IN_INCHES + values.output/MAX_SPEED_IN_INCHES),0.1,0.6), 5);
     Serial.println();
     */
-    
 }
 
 void turn360()
@@ -87,9 +138,6 @@ void turn360()
     uint8_t droite = 1; // Moteur1
     int rotation = 7740;
     bool turnCompleted = false;
- 
-    ENCODER_ReadReset(gauche);
-    ENCODER_ReadReset(droite);
     
     while (!turnCompleted) {
         // Read current encoder positions
@@ -118,9 +166,6 @@ void turn60(uint8_t direction) {
   uint8_t droite = 1; // Moteur1
   int rotation = 1260;
   bool turnCompleted = false;
-
-  ENCODER_ReadReset(gauche);
-  ENCODER_ReadReset(droite);
 
   Serial.println("Turning right !");
   
@@ -212,103 +257,146 @@ String detectColor() {
     }
 }
 
-void turnArcGreen() {
-    MOTOR_SetSpeed(1, MAX_SPEED - 0.17);
-    MOTOR_SetSpeed(0, MAX_SPEED);
-
-    if(detectColor() == "carpet" && actualStep == 2)
-    {
-        actualStep++;
-    }
-}
-
-void turnArcYellow() {
-    MOTOR_SetSpeed(1, MAX_SPEED - 0.1);
-    MOTOR_SetSpeed(0, MAX_SPEED-0.01);
-
-    if(detectColor() == "carpet" && actualStep == 2)
-    {
-        actualStep++;
-    }
-}
-
 void followWall(float sp, float speed) {
     uint16_t pv = ROBUS_ReadIR(3);
     float error = sp - pv;
     float output = KP*error + KD*(error - lastErrorLineFollowing);
 
-    Serial.print("Distance : ");
-    Serial.println(pv);
-
-    if (pv <= 25) {
-        actualStep++;
-    } else {
-        MOTOR_SetSpeed(0, speed + output);
-        MOTOR_SetSpeed(1, speed - output);
-    }
+    
+    MOTOR_SetSpeed(0, speed + output);
+    MOTOR_SetSpeed(1, speed - output);
     lastErrorLineFollowing = error;
 }
 
 float getLeftSpeed() {
-    static float past = 0.0;
+    static unsigned long lastTime = 0;
+    static float lastPulse = 0.0;
+    unsigned long currentTime = micros();
+    float currentPulse = ENCODER_Read(0);
+    
+    // Calculate the differences
+    unsigned long timeDifference = currentTime - lastTime;
+    if (currentTime < lastTime) { // Handle overflow
+        timeDifference = currentTime + (ULONG_MAX - lastTime) + 1;
+    }
+    float pulseDifference = currentPulse - lastPulse;
+    
+    // Calculate speed, checking for division by zero
     float speed = 0.0;
-    static float oldPulse = 0.0;
-    float present = micros();
-    float actualPulse = ENCODER_Read(0);
-    speed = 1000000.0 * pulseInDistance*float(actualPulse-oldPulse)/float(present - past);
-    past = present;
-    oldPulse = actualPulse;
-    return speed;
+    if (timeDifference > 0) {
+        speed = (pulseDifference * DISTANCE_PER_PULSE * 1000000.0) / timeDifference;
+    }
+    
+    // Update the static variables for the next call
+    lastTime = currentTime;
+    lastPulse = currentPulse;
+    
+    return speed; // Speed is in inches per second, assuming DISTANCE_PER_PULSE is in inches.
 }
 
 float getRightSpeed() {
-    static float past = 0.0;
+    static unsigned long lastTime = 0;
+    static float lastPulse = 0.0;
+    unsigned long currentTime = micros();
+    float currentPulse = ENCODER_Read(1);
+    
+    // Calculate the differences
+    unsigned long timeDifference = currentTime - lastTime;
+    if (currentTime < lastTime) { // Handle overflow
+        timeDifference = currentTime + (ULONG_MAX - lastTime) + 1;
+    }
+    float pulseDifference = currentPulse - lastPulse;
+    
+    // Calculate speed, checking for division by zero
     float speed = 0.0;
-    static float oldPulse = 0.0;
-    float present = micros();
-    float actualPulse = ENCODER_Read(1);
-    speed = 1000000.0 * pulseInDistance*float(actualPulse-oldPulse)/float(present - past);
-    past = present;
-    oldPulse = actualPulse;
-    return speed;
+    if (timeDifference > 0) {
+        speed = (pulseDifference * DISTANCE_PER_PULSE * 1000000.0) / timeDifference;
+    }
+    
+    // Update the static variables for the next call
+    lastTime = currentTime;
+    lastPulse = currentPulse;
+    
+    return speed; // Speed is in inches per second, assuming DISTANCE_PER_PULSE is in inches.
+}
+// Function to update the robot's position and orientation
+void updateRobotPositionAndOrientation() {
+    float leftDistance = getDistanceTraveledLeft();
+    float rightDistance = getDistanceTraveledRight();
+    // Calculate the change in orientation
+    float angleVariation = getAngleVariation(leftDistance,rightDistance);
+    float newOrientation = bot.orientation + angleVariation;
+
+    // Update the robot's orientation
+    bot.orientation = newOrientation;
+
+    
+    // Normalize the orientation to keep it between -PI and PI
+    /*
+    while (bot.orientation > M_PI) bot.orientation -= 2 * M_PI;
+    while (bot.orientation < -M_PI) bot.orientation += 2 * M_PI;
+    */
+    
+    // Calculate the average distance traveled
+    float avgDistance = (leftDistance + rightDistance) / 2.0;
+
+    // Update the robot's position
+    bot.xPosition += avgDistance * cos(bot.orientation);
+    bot.yPosition += avgDistance * sin(bot.orientation);
+    
 }
 
 void calculPID(PIDValues &values)
 {
     values.dt = (millis() - values.ti)/1000;
     values.error = values.sp - values.pv;
+    
+    //if(abs(values.error) < 1)
+        values.integral += values.error * values.dt;
+    //if(abs(values.error) > 1)
+    //    values.integral = 1;
+    
+    values.integral = constrain(values.integral, -10,10);
+
     if(abs(values.error) < 1)
         values.integral += values.error * values.dt;
     if(abs(values.error) > 1)
-        values.integral = 1;
-    values.integral = constrain(values.integral, -10,10);
-    values.output = values.kp*values.error + values.ki*values.integral;
-    values.ti = millis();
-}
+        values.integral = 0;
 
-void updatePIDMain(float speed) {
-    float leftSpeed = getLeftSpeed();
-    float rightSpeed = getRightSpeed();
+    /*
+    if (values.pv < values.sp && values.pv > 3.45) {
+        values.integral += values.error * values.dt;
+
+    if (values.pv > values.sp) {
+        values.integral -= (values.pv - values.sp) * values.antiWindupGain;
+    }
+    else if (values.pv < 3.45) {
+        values.integral += (3.45 - values.pv) * values.antiWindupGain;
+    }
+    */
+
+    values.output = (values.kp*values.error) + (values.integral * values.ki);
+    values.ti = millis();
+
+    updateRobotPositionAndOrientation();
 }
 
 void leftPID(float sp) {
     leftPIDValues.sp = sp;
     leftPIDValues.pv = getLeftSpeed();
     calculPID(leftPIDValues);
-    MOTOR_SetSpeed(0, constrain((leftPIDValues.pv/MAX_SPEED_IN_INCHES + leftPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.6));
-    //displayPIDValues(leftPIDValues);
+    MOTOR_SetSpeed(0, constrain((leftPIDValues.pv/MAX_SPEED_IN_INCHES + leftPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.8));
 }
 
 void rightPID(float sp) {
     rightPIDValues.sp = sp;
     rightPIDValues.pv = getRightSpeed();
     calculPID(rightPIDValues);
-    MOTOR_SetSpeed(1, constrain((rightPIDValues.pv/MAX_SPEED_IN_INCHES + rightPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.6));
-
+    MOTOR_SetSpeed(1, constrain((rightPIDValues.pv/MAX_SPEED_IN_INCHES + rightPIDValues.output/MAX_SPEED_IN_INCHES),0.1,0.8));
 }
 
 float getDistanceTraveled(int encoder_channel) {
-    return ENCODER_Read(encoder_channel) * pulseInDistance;
+    return ENCODER_Read(encoder_channel) * DISTANCE_PER_PULSE;
 }
 
 void goForward(float speed, float distance) {
@@ -330,6 +418,25 @@ void goForward(float speed, float distance) {
     // Stop the motors once the target distance is reached
     MOTOR_SetSpeed(0, 0);
     MOTOR_SetSpeed(1, 0);
+}
+
+void turnArc(float rightSpeed, float leftSpeed, float distance) {
+    float distanceTraveledLeft = 0;
+    float distanceTraveledRight = 0;
+    
+    while ((distanceTraveledLeft + distanceTraveledRight) / 2 < distance) {
+        distanceTraveledLeft = getDistanceTraveled(0);
+        distanceTraveledRight = getDistanceTraveled(1);
+
+        leftPID(leftSpeed);
+        rightPID(rightSpeed);
+    }
+}
+
+String findColor() {
+    if(ROBUS_ReadIR(3) > 120)
+        return "green";
+    return "yellow";
 }
 
 void initializeServos() {
@@ -366,9 +473,98 @@ void captureBall(){
     SERVO_Disable(1);
 }
 
+void goForwardWithAcceleration(int maxSpeed, float distance, float acceleration, float deceleration, bool isDeceleration) {
+    for (int i = 1; i <= (maxSpeed); i++) {
+        goForward(i, acceleration);
+    }
+
+    // 1 boucle -- DistanceWanted - (Maxspeed*distanceWanted/16)
+
+    goForward(maxSpeed,  distance - ((acceleration + deceleration)*maxSpeed));
+
+    if(isDeceleration) {
+        for (int j = maxSpeed; j > -1; j--) {
+            goForward(j, deceleration);
+        }
+        MOTOR_SetSpeed(0,0);
+        MOTOR_SetSpeed(1,0);
+    }
+}
+
+void updateRobotState() {
+    float leftDistance = getDistanceTraveledLeft();
+    float rightDistance = getDistanceTraveledRight();
+    float angleVariation = getAngleVariation(leftDistance,rightDistance);
+    float newOrientation = bot.orientation + angleVariation;
+    float rightSpeed = getRightSpeed();
+    float leftSpeed = getLeftSpeed();
+
+    bot.orientation = newOrientation;
+    bot.rightMotorSpeed = rightSpeed;
+    bot.leftMotorSpeed = leftSpeed;
+}
+
+void move(float radius, float cruisingSpeed, float distance,float finishAngle, int direction) {
+    float leftSpeedSetpoint, rightSpeedSetpoint;
+
+    if (radius == 0) {
+        // Going straight
+        leftSpeedSetpoint = rightSpeedSetpoint = cruisingSpeed;
+        if(bot.xPosition > distance) {
+            actualStep++;
+        }
+    } else {
+        if(direction == 1 && bot.orientation <= finishAngle) {
+            actualStep++;
+        } else if(direction == 0 && bot.orientation <= finishAngle) {
+            actualStep++;
+        }
+        // Performing an arc
+        // Calculate wheel speeds based on the radius and desired center speed
+        float leftRadius = 1;
+        float rightRadius = 1;
+
+        if(direction == 0) {
+            leftRadius = radius - WHEEL_BASE_WIDTH / 2;
+            rightRadius = radius + WHEEL_BASE_WIDTH / 2;
+        } else {
+            leftRadius = radius + WHEEL_BASE_WIDTH / 2;
+            rightRadius = radius - WHEEL_BASE_WIDTH / 2;
+        }
+        // Determine the speed ratio based on the radii
+        float speedRatio = leftRadius / rightRadius;
+
+        // Set the wheel speeds proportionally to the speed ratio
+        leftSpeedSetpoint = cruisingSpeed * speedRatio;
+        rightSpeedSetpoint = cruisingSpeed;
+    }
+        /*
+        if (direction == 0) {
+            float deltaSpeed = rightSpeedSetpoint - leftSpeedSetpoint;
+            float actualSpeed = 1;
+            while(actualSpeed < rightSpeedSetpoint)
+            {   
+                rightPID(actualSpeed);
+                if(actualSpeed >= deltaSpeed) {
+                    leftPID(actualSpeed - deltaSpeed);
+                }
+                actualSpeed = actualSpeed + 0.005;
+            }
+        }
+        */
+        // Cruising speed
+        leftPID(leftSpeedSetpoint);
+        rightPID(rightSpeedSetpoint);
+        updateRobotPositionAndOrientation();
+}
+
 void setup() {
     BoardInit();
     initializeServos();
+    pinMode(RIGHT_GREEN_IR_PIN, INPUT);
+    pinMode(RIGHT_RED_IR_PIN, INPUT);
+    pinMode(LEFT_GREEN_IR_PIN, INPUT);
+    pinMode(LEFT_RED_IR_PIN, INPUT);
     /*
     if (tcs.begin()) {
         Serial.println("Found sensor");
@@ -380,41 +576,63 @@ void setup() {
 }
 
 void loop() {
+        
+        /*
+        Serial.print("left distance traveled : ");
+        Serial.println(leftDistance);
+        Serial.print("right distance traveled : ");
+        Serial.println(rightDistance);
+        Serial.print("Robot Orientation: ");
+        Serial.println(bot.orientation);
+        Serial.print("Left Speed : ");
+        Serial.println(bot.leftMotorSpeed);
+        Serial.print("Right Speed: ");
+        Serial.println(bot.rightMotorSpeed);
+        Serial.print("xPos: ");
+        Serial.println(bot.yPosition);
+        Serial.print("yPos: ");
+        Serial.println(bot.xPosition);
+        */
+        //updateRobotState();
+        
+        /*
+        if(bot.orientation > M_PI) {
+            isRunning = false;
+            Serial.print("xPos: ");
+            Serial.println(bot.yPosition);
+            Serial.print("yPos: ");
+            Serial.println(bot.xPosition);
+        }
+        */
+    /*
     if(isRunning)
     {
-        int Maxspeed = 17;
-        float DistanceWanted = 80; 
-        float acc = 0.1;
-        float decel = 0.1;
+        goForwardWithAcceleration(20, 60, 0.1, 0.2 , false);
+        isRunning = false;
+    }
+    */
 
-        for (int i = 0; i <= (Maxspeed); i++)
-        {
-            goForward(i, acc);
-   
-        }
-
-    // 1 boucle -- DistanceWanted - (Maxspeed*distanceWanted/16)
-
-        goForward(Maxspeed,  DistanceWanted - ((acc + decel)*Maxspeed));
-
-
-        for (int j = Maxspeed; j > -1; j--)
-        {
-            goForward(j, decel);
-   
-        }
-    MOTOR_SetSpeed(0, 0);
-    MOTOR_SetSpeed(1, 0);
-    
-    isRunning = false;
-
+    switch (actualStep)
+    {   
+        case 0:
+            actualColor = findColor();
+            startDistance = ROBUS_ReadIR(3);
+            bot.orientation = 0;
+            actualStep++;
+            break;
+        case 1:
+            move(29, 12, 0, -M_PI, 1);
+            Serial.println(bot.orientation);
+            break;
+        case 2:
+            followWall(GREEN_DISTANCE, 0.29);
+            break;
+        default:
+            break;
     }
     /*
-    MOTOR_SetSpeed(0,0.5);
-    Serial.println(getLeftSpeed());
-    */  
-    /*
-    actualColor = "yellow";
+    
+    
 
     //detectColor();
    switch (actualStep)
@@ -431,6 +649,7 @@ void loop() {
             turnArcGreen();
         if(actualColor == "yellow")
             turnArcYellow();
+        goForwardWithAcceleration(20, 60, 0.1, 0.2 , true);
     break;
     case 3:
         if(actualColor == "green")
@@ -456,7 +675,6 @@ void loop() {
     default:
     break;
    }
-   */
    
-    delay(100);
+   */
 }
