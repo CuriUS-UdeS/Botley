@@ -913,6 +913,19 @@ void move(float radius, float cruisingSpeed, float distance,float finishAngle, i
         updateRobotPositionAndOrientation();
 }
 
+
+void descendCup(){ //yes astral
+    SERVO_Enable(1);
+    SERVO_SetAngle(1,130);
+
+}
+
+void dropCup(){
+    SERVO_Enable(1);
+    SERVO_SetAngle(1,180);
+
+}
+
 void setup() {
     BoardInit();
     RetractArm();
@@ -1011,13 +1024,35 @@ void loop() {
             }
             break;
         case 12:
-            if(ImIOnLine() == 1)
-                PIDLigne();
-            else 
-                move(3, 10, 0, M_PI/4 , 1, 0, false);
+            actualStep++;
             break;
+
         case 13:
+            descendCup();
+            actualStep ++;
             break;
+        case 14:
+            move(1, 10, 0, M_PI/4 , 0, 0, false);
+            break;
+        case 15:
+            descendCup();
+            actualStep ++;
+            break;
+        case 16:
+            move(1, -10, 0, M_PI/4 , 1, 0, false);
+        break;
+        case 17:
+            move(0, 4, 1, 0, 0, 0, false);
+            break;
+        case 18:
+            if(ImIOnLine() == 1) {
+                PIDLigne();
+                actualStep++;
+            }
+            break;
+         
+
+
         default:
             break;
     }
