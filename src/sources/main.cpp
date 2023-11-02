@@ -1,52 +1,42 @@
 #include <Arduino.h>
-#include <librobus.h>
+#include <LibRobus.h>
+#include <Wire.h>
+#include <Adafruit_TCS34725.h>
+#include <math.h>
+#include <limits.h>
+#include <SharpIR.h>
+#include <QTRSensors.h>
 
-const int kHzWhistlePin=A0; 
-const int BruitAmbiantPin=A1;
+// PINS CONSTANTS
 
-const int MAP_WIDTH = 3;
-const int MAP_LENGTH = 11;
+const int RIGHT_RED_IR_PIN = 40;
+const int RIGHT_GREEN_IR_PIN = 41;
+const int LEFT_RED_IR_PIN = 42;
+const int LEFT_GREEN_IR_PIN = 43;
 
-const int LEFT_IR_PIN = 24;
-const int RIGHT_IR_PIN = 26;
+const int kHzWhistlePin = A10;
 
-int coordX = 1;
-int coordY = 0;
-int orientation = 2;
+uint16_t r, g, b, c;
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
-// Définition des constantes du PID (0.0007)
-#define KP_RIGHT 0.006
-#define KP_LEFT 0.014
-#define KI 0.00
-#define KD 0.1
+// ROBOT CONSTANTS
 
-// Définition des autres constantes
-#define WHEEL_DIAMETER 7.62 // 3 pouces convertis en cm
-#define PULSES_PER_REVOLUTION 3200
-#define MAX_SPEED 0.3
-#define MIN_SPEED 0.1
+const int gauche = 0;
+const int droite = 1;
+#define WHEEL_DIAMETER  3
+#define PULSE_PER_ROTATION 3200
+#define WHEEL_BASE_WIDTH 7.375
+#define WHEELS_RADIUS 7.375/2
 
-<<<<<<< Updated upstream
-float error_previous = 0;
-float integral = 0;
-=======
 // distance from wall
 #define GREEN_DISTANCE 26
 #define YELLOW_DISTANCE 60
 #define BLUE_DISTANCE 13
->>>>>>> Stashed changes
 
-bool isRunning = false;
-bool isMazeDone = false;
+// WALL PID CONSTANTS AND VARIABLES
+SharpIR sharp(A3, 1080);
+SharpIR sharpForward(A0, 1080);
 
-<<<<<<< Updated upstream
-// Une tile se compose de 4 murs, représentés par 0, 1 ou 2.
-struct tile {
-  int top;
-  int down;
-  int left;
-  int right;
-=======
 const float KP = 0.003; 
 const float KI = 0.000;
 const float KD = 0.00001;
@@ -63,7 +53,7 @@ int previousStep = 0;
 String actualColor;
 float startDistance;
 bool isRunning = true;
-bool isRaceModeActivated = false;
+bool isRaceModeActivated = true;
 
 // MOTORS PID VALUES
 
@@ -79,81 +69,13 @@ struct PIDValues {
     float pv;
     float output;
     float integral;
->>>>>>> Stashed changes
 };
 
-// Déclaration d'une matrice 2 dimensions contenant une tile pour chaque coordonnées
-tile TileMap[MAP_WIDTH][MAP_LENGTH];
+// Line Sensor Properties
+#define NUM_SENSORS             8  // number of sensors used
+#define NUM_SAMPLES_PER_SENSOR  4  // average 4 analog samples per sensor reading
+#define EMITTER_PIN             QTR_NO_EMITTER_PIN  // emitter is controlled by digital pin 2
 
-<<<<<<< Updated upstream
-int CheckForFrontWall() {
-  switch (orientation)
-    {
-    case 0:
-      return TileMap[coordX][coordY].left;
-      break;
-    case 1:
-      return TileMap[coordX][coordY].right;
-      break;
-    case 2:
-      return TileMap[coordX][coordY].top;
-      break;
-    case 3:
-      return TileMap[coordX][coordY].down;
-      break;
-    default:
-      Serial.println("Impossible to check for wall !");
-      break;
-  }
-}
-
-void AddWall(int type) {
-  if(type == 1) {
-    switch (orientation)
-    {
-    case 0:
-      TileMap[coordX][coordY].left = type;
-      TileMap[coordX - 1][coordY].right = type;
-      break;
-    case 1:
-      TileMap[coordX][coordY].right = type;
-      TileMap[coordX + 1][coordY].left = type;
-      break;
-    case 2:
-      TileMap[coordX][coordY].top = type;
-      TileMap[coordX][coordY + 1].down = type;
-      break;
-    case 3:
-      TileMap[coordX][coordY].down = type;
-      TileMap[coordX][coordY - 1].top = type;
-      break;
-    default:
-      Serial.println("Can't create a new wall ! ");
-      break;
-    }
-  } else {
-    switch (orientation)
-    {
-    case 0:
-      TileMap[coordX][coordY].right = type;
-      TileMap[coordX + 1][coordY].left = type;
-      break;
-    case 1:
-      TileMap[coordX][coordY].left = type;
-      TileMap[coordX - 1][coordY].right = type;
-      break;
-    case 2:
-      TileMap[coordX][coordY].down = type;
-      TileMap[coordX][coordY - 1].top = type;
-      break;
-    case 3:
-      TileMap[coordX][coordY].top = type;
-      TileMap[coordX][coordY + 1].down = type;
-      break;
-    default:
-      Serial.println("Can't create a new wall ! ");
-      break;
-=======
 // sensors 1 through 8 are connected to analog inputs 0 through 7, respectively
 QTRSensorsAnalog qtra((unsigned char[]) {A1, A2, A4, A5, A6, A7, A8, A9}, NUM_SENSORS, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
 unsigned int sensorValues[NUM_SENSORS];
@@ -296,24 +218,12 @@ void CupKiller (int color){//Color: green = 0 yellow = 1
       }
     else if (color == cup.Yellow){
         ExtendArm(cup.Yellow);
->>>>>>> Stashed changes
     }
   }
+
+return;
 }
 
-<<<<<<< Updated upstream
-bool DetectWall() {
-  // Function to add a new wall if the 2 IR sensors detect something
-  bool isIRLeft = !digitalRead(LEFT_IR_PIN);
-  bool isIRRigth = !digitalRead(RIGHT_IR_PIN);
-
-  if(isIRLeft && isIRRigth) {
-    AddWall(1);
-    return true;
-  } else {
-    return false;
-  }
-=======
 
 float getDistanceTraveledRight() {
     static float pastPulse = 0.0;
@@ -321,139 +231,68 @@ float getDistanceTraveledRight() {
     float distanceTraveled = (presentPulse-pastPulse)*DISTANCE_PER_PULSE;
     pastPulse = presentPulse;
     return distanceTraveled;
->>>>>>> Stashed changes
 }
 
-void TurnLeft()
-{
-   switch (orientation)
-  {
-  case 0:
-    orientation = 3;
-    break;
-  case 1:
-    orientation = 2;
-    break;
-  case 2:
-    orientation = 0;
-    break;
-  case 3:
-    orientation = 1;
-    break;
-  default:
-    break;
-  }
-    uint8_t gauche = 0; // Moteur2
-    uint8_t droite = 1; // Moteur1
-    int rotation = 1885;
-    bool turnCompleted = false;
- 
-    ENCODER_ReadReset(gauche);
-    ENCODER_ReadReset(droite);
- 
-    Serial.println("Turning right !");
-    
-    while (!turnCompleted) {
-        // Read current encoder positions
-        float pCurrentd = ENCODER_Read(droite);
-        float pCurrentg = ENCODER_Read(gauche);
-        // Apply corrections to motor speeds
-        MOTOR_SetSpeed(droite, 0.2);
-        MOTOR_SetSpeed(gauche, -0.2);
-        // Check if the robot has turned the desired angle
-        if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
-            // Set the flag to indicate that the turn has been completed
-            turnCompleted = true;
-            
-            // Stop the motors
-            MOTOR_SetSpeed(droite, 0);
-            MOTOR_SetSpeed(gauche, 0);
-            
-            Serial.println("Turn completed!");
-        }
-        delay(5);
-    }
+float getDistanceTraveledLeft() {
+    static float pastPulse = 0.0;
+    float presentPulse = ENCODER_Read(0);
+    float distanceTraveled = (presentPulse-pastPulse)*DISTANCE_PER_PULSE;
+    pastPulse = presentPulse;
+    return distanceTraveled;
 }
 
-void TurnAround()
-{
-  switch (orientation)
-  {
-  case 0:
-    orientation = 1;
-    break;
-  case 1:
-    orientation = 0;
-    break;
-  case 2:
-    orientation = 3;
-    break;
-  case 3:
-    orientation = 2;
-    break;
-  default:
-    break;
-  }
-    uint8_t gauche = 0; // Moteur2
-    uint8_t droite = 1; // Moteur1
-    int rotation = 3870;
-    bool turnCompleted = false;
- 
-    ENCODER_ReadReset(gauche);
-    ENCODER_ReadReset(droite);
- 
-    Serial.println("Turning right !");
-    
-    while (!turnCompleted) {
-        // Read current encoder positions
-        float pCurrentd = ENCODER_Read(droite);
-        float pCurrentg = ENCODER_Read(gauche);
-        // Apply corrections to motor speeds
-        MOTOR_SetSpeed(droite, -0.2);
-        MOTOR_SetSpeed(gauche, 0.2);
-        // Check if the robot has turned the desired angle
-        if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
-            // Set the flag to indicate that the turn has been completed
-            turnCompleted = true;
-            
-            // Stop the motors
-            MOTOR_SetSpeed(droite, 0);
-            MOTOR_SetSpeed(gauche, 0);
-            
-            Serial.println("Turn completed!");
-        }
-    }
-  delay(10);
+float getDistanceTraveled(float leftDistance, float rightDistance) {
+    return (rightDistance+leftDistance)/2;
 }
 
-void TurnRight()
+float getAngleVariation(float leftDistance, float rightDistance) {
+    return (rightDistance - leftDistance)/(2*WHEELS_RADIUS);
+}
+
+void displayPIDValues(PIDValues values)
 {
-  switch (orientation)
-  {
-  case 0:
-    orientation = 2;
-    break;
-  case 1:
-    orientation = 3;
-    break;
-  case 2:
-    orientation = 1;
-    break;
-  case 3:
-    orientation = 0;
-    break;
-  default:
-    break;
-  }
+    /*
+    Serial.print("Kp : ");
+    Serial.print(values.kp, 5);
+    Serial.print("\t Ki : ");
+    Serial.print(values.ki, 5);
+    Serial.print("\t Integral : ");
+    Serial.print(values.integral, 5);
+    Serial.print("\t Kd : ");
+    Serial.print(values.kd, 5);
+    Serial.print("\t Ti : ");
+    Serial.print(values.ti, 5);
+    Serial.print("\t dt : ");
+    Serial.print(values.dt, 5);
+    Serial.print("\t Sp : ");
+    Serial.print(values.sp, 5);
+    Serial.print("\t Pv : ");
+    */
+
+    //Serial.println(values.pv, 5);
+
+    /*
+    Serial.print("\t Error : ");
+    Serial.print(values.error, 5);
+    Serial.print("\t Output : ");
+    Serial.print(values.output, 5);
+    Serial.print("\t New speed : ");
+    Serial.print(constrain((values.pv/MAX_SPEED_IN_INCHES + values.output/MAX_SPEED_IN_INCHES),0.1,0.6), 5);
+    Serial.println();
+    */
+}
+
+void turn360(float speed, float initialAngle)
+{
+
+}
+
+
+void turn60(uint8_t direction) {
   uint8_t gauche = 0; // Moteur2
   uint8_t droite = 1; // Moteur1
-  int rotation = 1890;
+  int rotation = 1260;
   bool turnCompleted = false;
-
-  ENCODER_ReadReset(gauche);
-  ENCODER_ReadReset(droite);
-
-  Serial.println("Turning right !");
   
   while (!turnCompleted) {
       // Read current encoder positions
@@ -461,8 +300,15 @@ void TurnRight()
       float pCurrentg = ENCODER_Read(gauche);
 
       // Apply corrections to motor speeds
-      MOTOR_SetSpeed(droite, -0.2);
-      MOTOR_SetSpeed(gauche, 0.2);
+
+      if(direction == 0) {
+        MOTOR_SetSpeed(droite, 0.3);
+        MOTOR_SetSpeed(gauche, -0.3);
+      } else {
+        MOTOR_SetSpeed(droite, -0.3);
+        MOTOR_SetSpeed(gauche, 0.3);
+      }
+      
       // Check if the robot has turned the desired angle
       if (fabs(pCurrentg) >= rotation && fabs(pCurrentd) >= rotation) {
           // Set the flag to indicate that the turn has been completed
@@ -472,46 +318,72 @@ void TurnRight()
           MOTOR_SetSpeed(droite, 0);
           MOTOR_SetSpeed(gauche, 0);
           
-          Serial.println("Turn completed!");
       }
   }
 
   delay(10);
 }
 
-
-void GoForward(float distance_cm) {
-
-  if(!isMazeDone) {
-      switch (orientation)
+//@brief displayValues : Fonction pour afficher les valeurs du capteur obtenue dans la calibration
+void displayValues(){
+  // print the calibration minimum values measured when emitters were on
+  Serial.begin(9600);
+  for (int i = 0; i < NUM_SENSORS; i++)
   {
-  case 0:
-    coordX--;
-    AddWall(2);
-    break;
-  case 1:
-    coordX++;
-    AddWall(2);
-    break;
-  case 2:
-    coordY++;
-    AddWall(2);
-    break;
-  case 3:
-    coordY--;
-    AddWall(2);
-    break;
-  default:
-    break;
+    Serial.print(qtra.calibratedMinimumOn[i]);
+    Serial.print(' ');
   }
+  Serial.println();
+  
+  // print the calibration maximum values measured when emitters were on
+  for (int i = 0; i < NUM_SENSORS; i++)
+  {
+    Serial.print(qtra.calibratedMaximumOn[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+}
+
+//@brief AutomaticCalibrateLineSensorln : Fonction pour trouver, sauvegarder et imprimer les valeurs min et max des capteurs de lignes
+void AutomaticCalibrateLineSensor(){
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);    // turn on LED to indicate we are in calibration mode
+  for (int i = 0; i < 400; i++)  // make the calibration take about 10 seconds
+  {
+    qtra.calibrate();       // reads all sensors 10 times at 2.5 ms per six sensors (i.e. ~25 ms per call)
+  }
+  digitalWrite(13, LOW);     // turn off  LED to indicate we are through with calibration
+
+  for (int i = 0; i < 400; i++)  // make the calibration take about 10 seconds
+  {
+    qtra.calibrate();       // reads all sensors 10 times at 2.5 ms per six sensors (i.e. ~25 ms per call)
+  }
+
+//reste a effacer et hard coder les valeurs min et max de detection
+
+}
+
+//@brief ManualCalibrateLineSensor() : WHITE Fonction pour mettre directement les valeurs pour le defi du parcours dans la calibration du capteur
+void ManualCalibrateLineSensorWhite(){
+  //valeurs min et max pour les capteurs 
+  unsigned int minValues[NUM_SENSORS] = {33, 32, 31, 33, 30, 28, 30, 27,};
+  unsigned int maxValues[NUM_SENSORS] = {880, 701, 745, 743, 713, 798, 693, 837};
+  
+  //initialise les valeurs de la librairie 
+  qtra.calibrate(); 
+
+  //ecrit manuellement toute les valeurs min des capteurs pour le calcul de la position de la  ligne
+  for (int i = 0; i < NUM_SENSORS; i++)
+  {
+    qtra.calibratedMinimumOn[i] = minValues[i];
   }
   
-    int target_pulses = (distance_cm / (PI * WHEEL_DIAMETER)) * PULSES_PER_REVOLUTION;
-    int acceleration_point = target_pulses * 0.25;
-    int deceleration_point = target_pulses * 0.75;
+  //ecrit manuellement toute les valeurs max des capteurs pour le calcul de la position de la  ligne
+  for (int j = 0; j < NUM_SENSORS; j++)
+  {
+    qtra.calibratedMaximumOn[j] = maxValues[j];
+  }
 
-<<<<<<< Updated upstream
-=======
 }
 
 //@brief ManualCalibrateLineSensor() : GREEN Fonction pour mettre directement les valeurs pour le defi du parcours dans la calibration du capteur
@@ -913,21 +785,125 @@ float getDistanceTraveled(int encoder_channel) {
 
 void goForward(float speed, float distance) {
     // Reset encoders
->>>>>>> Stashed changes
     ENCODER_Reset(0);
     ENCODER_Reset(1);
 
-    int compteur = 0;
-    integral = 0;
+    float distanceTraveledLeft = 0;
+    float distanceTraveledRight = 0;
+    
+    while ((distanceTraveledLeft + distanceTraveledRight) / 2 < distance) {
+        distanceTraveledLeft = getDistanceTraveled(0);
+        distanceTraveledRight = getDistanceTraveled(1);
 
-    while(ENCODER_Read(0) < target_pulses && ENCODER_Read(1) < target_pulses) {
-        compteur++;
+        leftPID(speed);
+        rightPID(speed);
+    }
+
+    // Stop the motors once the target distance is reached
+    MOTOR_SetSpeed(0, 0);
+    MOTOR_SetSpeed(1, 0);
+}
+
+void turnArc(float rightSpeed, float leftSpeed, float distance) {
+    float distanceTraveledLeft = 0;
+    float distanceTraveledRight = 0;
+    
+    while ((distanceTraveledLeft + distanceTraveledRight) / 2 < distance) {
+        distanceTraveledLeft = getDistanceTraveled(0);
+        distanceTraveledRight = getDistanceTraveled(1);
+
+        leftPID(leftSpeed);
+        rightPID(rightSpeed);
+    }
+}
+
+String findColor() {
+    if(ROBUS_ReadIR(3) > 120)
+        return "green";
+    return "yellow";
+}
+
+void captureBall(){
+    SERVO_Enable(1);
+    SERVO_SetAngle(1,0);
+    delay(1000);
+    SERVO_Disable(1);
+}
+
+void goForwardWithAcceleration(int maxSpeed, float distance, float acceleration, float deceleration, bool isDeceleration) {
+    for (int i = 1; i <= (maxSpeed); i++) {
+        goForward(i, acceleration);
+    }
+
+    // 1 boucle -- DistanceWanted - (Maxspeed*distanceWanted/16)
+
+    goForward(maxSpeed,  distance - ((acceleration + deceleration)*maxSpeed));
+
+    if(isDeceleration) {
+        for (int j = maxSpeed; j > -1; j--) {
+            goForward(j, deceleration);
+        }
+        MOTOR_SetSpeed(0,0);
+        MOTOR_SetSpeed(1,0);
+    }
+}
+
+void updateRobotState() {
+    float leftDistance = getDistanceTraveledLeft();
+    float rightDistance = getDistanceTraveledRight();
+    float angleVariation = getAngleVariation(leftDistance,rightDistance);
+    float newOrientation = bot.orientation + angleVariation;
+    float rightSpeed = getRightSpeed();
+    float leftSpeed = getLeftSpeed();
+
+    bot.orientation = newOrientation;
+    bot.rightMotorSpeed = rightSpeed;
+    bot.leftMotorSpeed = leftSpeed;
+}
+
+void move(float radius, float cruisingSpeed, float distance,float finishAngle, int direction, int sens, bool lineCondition) {
+    float leftSpeedSetpoint, rightSpeedSetpoint;
+    float deltaX = bot.xPosition - bot.initialXPosition;
+    float deltaY = bot.yPosition - bot.initialYPosition;
+    float deltaOrientation = abs(bot.orientation - bot.initialOrientation);
+
+    if (radius == 0) {
+        // Going straight
+        if(lineCondition) {
+            if(ImIOnLine() == 1)
+                actualStep++;
+        } else {
+            switch (sens)
+            {
+            case 0:
+                if(abs(deltaX) > distance) {
+                    previousStep = actualStep;
+                    actualStep++;
+                }
+                break;
+            case 1:
+                if(abs(deltaX) < distance) {
+                    previousStep = actualStep;
+                    actualStep++;
+                }
+                break;
+            case 2:
+                if(abs(deltaY) > distance) {
+                    previousStep = actualStep;
+                    actualStep++;
+                }
+                break;
+            case 3:
+                if(abs(deltaY) > distance) {
+                    previousStep = actualStep;
+                    actualStep++;
+                }
+                break;
+            default:
+                break;
+            }
+        }
         
-<<<<<<< Updated upstream
-        float error_left = target_pulses - ENCODER_Read(0);
-        float error_right = target_pulses - ENCODER_Read(1);
-        integral += (error_left + error_right) / 2;
-=======
         leftSpeedSetpoint = rightSpeedSetpoint = cruisingSpeed;
     } else {
         if(direction == 1 && deltaOrientation >= finishAngle) {
@@ -941,407 +917,42 @@ void goForward(float speed, float distance) {
         // Calculate wheel speeds based on the radius and desired center speed
         float leftRadius = 1;
         float rightRadius = 1;
->>>>>>> Stashed changes
 
-        float pid_left = KP_LEFT * error_left + KI * integral + KD * (error_left - error_previous);
-        float pid_right = KP_RIGHT * error_right + KI * integral + KD * (error_right - error_previous);
+        if(direction == 0) {
+            leftRadius = radius - WHEEL_BASE_WIDTH / 2;
+            rightRadius = radius + WHEEL_BASE_WIDTH / 2;
+        } else {
+            leftRadius = radius + WHEEL_BASE_WIDTH / 2;
+            rightRadius = radius - WHEEL_BASE_WIDTH / 2;
+        }
+        // Determine the speed ratio based on the radii
+        float speedRatio = leftRadius / rightRadius;
 
-        // Acceleration
-        if (ENCODER_Read(0) < acceleration_point) {
-            float factor = sin(PI/2 * (float)ENCODER_Read(0) / acceleration_point);
-            if(!isMazeDone) {
-              pid_left *= factor * MAX_SPEED;
-              pid_right *= factor * MAX_SPEED;
-            } else {
-              pid_left *= factor * 0.8;
-              pid_right *= factor * 0.8;
+        // Set the wheel speeds proportionally to the speed ratio
+        leftSpeedSetpoint = cruisingSpeed * speedRatio;
+        rightSpeedSetpoint = cruisingSpeed;
+    }
+        /*
+        if (direction == 0) {
+            float deltaSpeed = rightSpeedSetpoint - leftSpeedSetpoint;
+            float actualSpeed = 1;
+            while(actualSpeed < rightSpeedSetpoint)
+            {   
+                rightPID(actualSpeed);
+                if(actualSpeed >= deltaSpeed) {
+                    leftPID(actualSpeed - deltaSpeed);
+                }
+                actualSpeed = actualSpeed + 0.005;
             }
         }
-        // Deceleration
-        else if (ENCODER_Read(0) > deceleration_point) {
-            float factor = sin(PI/2 + PI/2 * (float)(ENCODER_Read(0) - deceleration_point) / (target_pulses - deceleration_point));
-            if(!isMazeDone) {
-              pid_left *= factor * MAX_SPEED;
-              pid_right *= factor * MAX_SPEED;
-            } else {
-              pid_left *= factor * 0.8;
-              pid_right *= factor * 0.8;
-            }
-        }
-        else {
-            if(!isMazeDone) {
-              pid_left *= MAX_SPEED;
-              pid_right *= MAX_SPEED;
-            } else {
-              pid_left *= 0.8;
-              pid_right *= 0.8;
-            }
-            
-        }
-
-        float correction_left = constrain(pid_left, MIN_SPEED, MAX_SPEED);
-        float correction_right = constrain(pid_right, MIN_SPEED, MAX_SPEED);
-
-        MOTOR_SetSpeed(0, correction_left);
-        MOTOR_SetSpeed(1, correction_right);
-
-        error_previous = (error_left + error_right) / 2;
-
-        // Serial prints for debugging
-        // ... [Your debugging prints]
-
-        delay(10); // Delay for readability
-    }
-
-    MOTOR_SetSpeed(0, 0); // Stop the left motor
-    MOTOR_SetSpeed(1, 0); // Stop the right motor
-}
-
-void Turn(int newOrientation) {
-  switch (orientation)
-  {
-  case 0:
-    switch (newOrientation)
-    {
-    case 0:
-      break;
-    case 1:
-      TurnAround();
-      break;
-    case 2:
-      TurnRight();
-      break;
-    case 3:
-      TurnLeft();
-      break;
-    default:
-      Serial.println("IMPOSSIBLE TO TURN !");
-      break;
-    }
-    break;
-  case 1:
-    switch (newOrientation)
-    {
-    case 0:
-      TurnAround();
-      break;
-    case 1:
-      break;
-    case 2:
-      TurnLeft();
-      break;
-    case 3:
-      TurnRight();
-      break;
-    default:
-      Serial.println("IMPOSSIBLE TO TURN !");
-      break;
-    }
-    break;
-  case 2:
-    switch (newOrientation)
-    {
-    case 0:
-      TurnLeft();
-      break;
-    case 1:
-      TurnRight();
-      break;
-    case 2:
-      break;
-    case 3:
-      TurnAround();
-      break;
-    default:
-      Serial.println("IMPOSSIBLE TO TURN !");
-      break;
-    }
-    break;
-  case 3:
-    switch (newOrientation)
-    {
-    case 0:
-      TurnRight();
-      break;
-    case 1:
-      TurnLeft();
-      break;
-    case 2:
-      TurnAround();
-      break;
-    case 3:
-      break;
-    default:
-      Serial.println("IMPOSSIBLE TO TURN !");
-      break;
-    }
-    break;
-  default:
-    Serial.println("IMPOSSIBLE TO TURN !");
-    break;
-  }
-}
-
-bool DetectWhistle()
-{
-  bool isRunning = false;
-
-  //lire valeur du microphone
-    float MicrophoneValue=analogRead(kHzWhistlePin);
- 
-    //lire valeur du bruit ambiant
-    float BruitAmbiantValue=analogRead(BruitAmbiantPin);
- 
-    float difference = (MicrophoneValue-BruitAmbiantValue); 
- 
-    if (difference > 50)  
-    {
-      isRunning = true;
-      Serial.println("Whistle detected, GOGOGO !");
-    }
-
-    return isRunning;
-
-}
-
-void PrintRobotState() {
-  Serial.print("Coordinates : (");
-  Serial.print(coordX);
-  Serial.print(", ");
-  Serial.print(coordY);
-  Serial.print(")");
-
-  switch (orientation)
-  {
-  case 0:
-    Serial.print("   Orientation : left");
-    break;
-  case 1:
-    Serial.print("   Orientation : right");
-    break;
-  case 2:
-    Serial.print("   Orientation : Top");
-    break;
-  case 3:
-    Serial.print("   Orientation : down");
-    break;
-  default:
-    Serial.print("   Orientation : ERROR");
-    break;
-  }
-}
-
-// Fonction permettant d'afficher la map dans la console, elle sert seulement pour tester et visualiser.
-void PrintMap() {
-  Serial.println("");
-
-  for (int y = MAP_LENGTH - 1; y >= 0; y--) { // Start from the bottom row and go upwards
-    // Print the top row of each tile
-    for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].top == 2) {
-        Serial.print("+###+");
-      } else if (TileMap[x][y].top == 1) {
-        Serial.print("+---+");
-      } else {
-        Serial.print("+   +");
-      }
-    }
-    Serial.println(); // Move to the next row
-
-    // Print the middle row of each tile (including walls on the left and right)
-    for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].left == 2) {
-        Serial.print("#");
-      } else if (TileMap[x][y].left == 1) {
-        Serial.print("|");
-      } else {
-        Serial.print(" ");
-      }
-      Serial.print("   ");
-      if (TileMap[x][y].right == 2) {
-        Serial.print("#");
-      } else if (TileMap[x][y].right == 1) {
-        Serial.print("|");
-      } else {
-        Serial.print(" ");
-      }
-    }
-    Serial.println(); // Move to the next row
-
-    // Print the bottom row of each tile
-    for (int x = 0; x < MAP_WIDTH; x++) {
-      if (TileMap[x][y].down == 2) {
-        Serial.print("+###+");
-      } else if (TileMap[x][y].down == 1) {
-        Serial.print("+---+");
-      } else {
-        Serial.print("+   +");
-      }
-    }
-    Serial.println(); // Move to the next row
-  }
-}
-
-int FindTheWay() {
-  /*
-  int frontWall = CheckForFrontWall();
-
-  if(frontWall == 0) {
-    return orientation;
-  }
-  */
-
-  if(TileMap[coordX][coordY].top == 0) {
-    return 2;
-  } else if (TileMap[coordX][coordY].left == 0) {
-    return 0;
-  } else if (TileMap[coordX][coordY].right == 0) {
-    return 1;
-  } else if (TileMap[coordX][coordY].down == 0) {
-    return 3;
-  }
-
-  if(TileMap[coordX][coordY].top == 2) {
-    return 2;
-  } else if (TileMap[coordX][coordY].left == 2) {
-    return 0;
-  } else if (TileMap[coordX][coordY].right == 2) {
-    return 1;
-  } else if (TileMap[coordX][coordY].down == 2) {
-    return 3;
-  } else {
-    return -1;
-  }
-}
-
-void GenerateMap()
-{
-  for(int x = 0; x < MAP_WIDTH; x++)
-  {
-    for(int y = 0; y < MAP_LENGTH; y++)
-    {
-      // Set the left side to have only left edges
-      if (x == 0) {
-        TileMap[x][y].left = true;
-      } else {
-        TileMap[x][y].left = false;
-      }
-      
-      // Set the right side to have only right edges
-      if (x == MAP_WIDTH - 1) {
-        TileMap[x][y].right = true;
-      } else {
-        TileMap[x][y].right = false;
-      }
-      
-      // Set the top side to have only top edges
-      if (y == 0) {
-        TileMap[x][y].down = true;
-      } else {
-        TileMap[x][y].down = false;
-      }
-      
-      // Set the bottom side to have only bottom edges
-      if (y == MAP_LENGTH - 1) {
-        TileMap[x][y].top = true;
-      } else {
-        TileMap[x][y].top = false;
-      }
-
-      if(y != 0 && y%2 != 0)
-      {
-        TileMap[x][y].left = true;
-        TileMap[x][y].right = true;
-      }
-    }
-  }
-}
-
-void Reset() {
-  isRunning = false;
-  isMazeDone = false;
-  orientation = 2;
-  coordX = 1;
-  coordY = 0;
-
-  for (int i = 0; i < MAP_WIDTH; i++) {
-    for (int j = 0; j < MAP_LENGTH; j++) {
-        if (TileMap[i][j].top == 2) {
-            TileMap[i][j].top = 0;
-        }
-        if (TileMap[i][j].down == 2) {
-            TileMap[i][j].down = 0;
-        }
-        if (TileMap[i][j].left == 2) {
-            TileMap[i][j].left = 0;
-        }
-        if (TileMap[i][j].right == 2) {
-            TileMap[i][j].right = 0;
-        }
-    }
-  }
+        */
+        // Cruising speed
+        leftPID(leftSpeedSetpoint);
+        rightPID(rightSpeedSetpoint);
+        updateRobotPositionAndOrientation();
 }
 
 void setup() {
-<<<<<<< Updated upstream
-  BoardInit();
-  GenerateMap();
-
-  // Initialize the IR pins
-  pinMode(LEFT_IR_PIN, INPUT);
-  pinMode(RIGHT_IR_PIN, INPUT);
-
-  /*
-  TileMap[2][0].top = 1;
-  TileMap[0][2].top = 1;
-  TileMap[1][2].right = 1;
-  TileMap[1][1].top = 1;
-  TileMap[1][2].down = 1;
-  TileMap[1][4].top = 1;
-  TileMap[1][4].right = 1;
-  TileMap[0][4].down = 1;
-  TileMap[0][6].top = 1;
-  TileMap[1][6].down = 1;
-  TileMap[1][6].right = 1;
-  TileMap[1][8].left = 1;
-  TileMap[1][8].top = 1;
-  TileMap[2][8].down = 1;
-  */
-
-  TileMap[1][0].top = 1;
-  TileMap[1][1].down = 1;
-  TileMap[1][1].top = 1;
-  TileMap[1][2].down = 1;
-
-  TileMap[1][2].top = 1;
-  TileMap[1][3].down = 1;
-  TileMap[1][3].top = 1;
-  TileMap[1][4].down = 1;
-
-  TileMap[1][6].top = 1;
-  TileMap[1][7].down = 1;
-  TileMap[1][7].top = 1;
-  TileMap[1][8].down = 1;
-  TileMap[1][8].top = 1;
-  TileMap[1][9].down = 1;
-
-  TileMap[1][10].left = 1;
-  TileMap[1][10].right = 1;
-
-  PrintMap();
-
-  delay(500);
-}
-
-void loop() {
-  // Check if the robot has reached the end (coordY == 9)
-  if (coordY == 10 && coordX == 1) {
-    isMazeDone = true;
-    Turn(3);
-    delay(600);
-    GoForward(3000);
-  }
-=======
     BoardInit();
     RetractArm();
     SERVO_Enable(1);
@@ -1355,50 +966,22 @@ void loop() {
 void loop() {
 
     float actualTime = millis();
->>>>>>> Stashed changes
 
-  /*
-  if(ROBUS_IsBumper(0) == true && ROBUS_IsBumper(1) == true)
-    Reset();
-  */
+    if(previousStep - actualStep != 0) {
+        bot.initialXPosition = bot.xPosition;
+        bot.initialYPosition = bot.yPosition;
+        bot.initialOrientation = bot.orientation;
+        previousStep = actualStep;
 
-<<<<<<< Updated upstream
-  if(DetectWhistle() == true)
-    isRunning = true;
-
-  // If the maze is not yet complete
-  if (!isMazeDone && isRunning) {
-    // Perform actions in a specific order:
-    int newOrientation;
-
-    // Detect if there's a wall or a tape in front of the robot and update the map
-    while(DetectWall() == true || CheckForFrontWall() == 1) {
-      // Find the new orientation after detecting walls
-      newOrientation = FindTheWay();
-      if(newOrientation != -1) {
-        Turn(newOrientation);
-        delay(600);
-      }
-=======
         
         if(actualStep == 23) {
             Calibrate_Line_Sensor(FollowLine.Manuel, 0);
         }
->>>>>>> Stashed changes
     }
-    // If a valid path is found, adjust the orientation and move forward
-    if (newOrientation != -1) {
-      Serial.println("Go forward 50 cm");
-      if (!isMazeDone)
-        GoForward(50);
-      else
-        GoForward(5000);
+
+    if(cup.isArmExtended && actualTime - cup.initialTime >= cup.maxRetractTime) {
+        RetractArm();
     }
-<<<<<<< Updated upstream
-  }
-  
-}
-=======
 
     if(isRaceModeActivated == false){
         switch (actualStep)
@@ -1545,18 +1128,26 @@ void loop() {
                 break;
         }
     } else if(isRaceModeActivated == true) {
-        startDistance = YELLOW_DISTANCE;
         switch (actualStep)
         {   
             case 0:
-                if(ROBUS_IsBumper(3))
+                if(ROBUS_IsBumper(1)) {
+                    startDistance = GREEN_DISTANCE;
+                }
+                if(ROBUS_IsBumper(0)) {
+                    startDistance = YELLOW_DISTANCE;
+                }
+                if(ROBUS_IsBumper(3) || ROBUS_IsBumper(2))
                     actualStep++;
                 break; 
             case 1:
                 actualStep++;
                 break;
             case 2:
-                Calibrate_Line_Sensor(FollowLine.Manuel, cup.Yellow);
+                if(startDistance == YELLOW_DISTANCE)
+                    Calibrate_Line_Sensor(FollowLine.Manuel, cup.Yellow);
+                else if (startDistance == GREEN_DISTANCE)
+                    Calibrate_Line_Sensor(FollowLine.Manuel, cup.Green);
                 bot.orientation = 0;
                 actualStep++;
                 break;
@@ -1711,4 +1302,3 @@ void loop() {
     }
     */
 }
->>>>>>> Stashed changes
