@@ -29,12 +29,13 @@ const int droite = 1;
 #define WHEELS_RADIUS 7.375/2
 
 // distance from wall
-#define GREEN_DISTANCE 29
+#define GREEN_DISTANCE 24
 #define YELLOW_DISTANCE 60
 #define BLUE_DISTANCE 13
 
 // WALL PID CONSTANTS AND VARIABLES
 SharpIR sharp(A3, 1080);
+SharpIR sharpForward(A0, 1080);
 
 const float KP = 0.003; 
 const float KI = 0.000;
@@ -48,7 +49,7 @@ uint16_t lastPv = -1;
 
 // GLOBAL VARIABLES
 int actualStep = 1;
-int previousStep = 0;
+int previousStep = 1;
 String actualColor;
 float startDistance;
 bool isRunning = true;
@@ -140,7 +141,7 @@ struct StructPourCup{
   bool cupDetected = false;
   bool isArmExtended = false;
   float initialTime = millis();
-  const float maxRetractTime = 1000.0;
+  const float maxRetractTime = 3000.0;
 };
 StructPourCup cup;
 
@@ -151,6 +152,11 @@ bool DetectWhistle()
   if (A > 590)
     isRunning = true;
   return isRunning;
+}
+
+bool DetectBall()
+{
+  
 }
 
 void RetractArm(){
@@ -189,12 +195,13 @@ void CupKiller (int color){//Color: green = 0 yellow = 1
     cup.cupDetected = 1;
   }
   
-  if (cup.cupDetected == 1){
+  if (cup.cupDetected == 1 && cup.isArmExtended == 0){
+    cup.initialTime = millis();
     if (color == cup.Green){
       ExtendArm(cup.Green);//positions on ete guess alors pt a changer
       }
-    if (color == cup.Yellow){
-    ExtendArm(cup.Yellow);
+    else if (color == cup.Yellow){
+        ExtendArm(cup.Yellow);
     }
   }
 
@@ -777,32 +784,6 @@ String findColor() {
     return "yellow";
 }
 
-void initializeServos() {
-    SERVO_Enable(0);
-    SERVO_Enable(1);
-    SERVO_SetAngle(1,160);
-    SERVO_SetAngle(0,110);
-    delay(500);
-    SERVO_Disable(0);
-    SERVO_Disable(1);
-}
-
-void deployArm(){
-    SERVO_Enable(0);
-    SERVO_SetAngle(0,180);
-}
-
-void retractArm(){
-    SERVO_SetAngle(0,95);
-    delay(500);
-    SERVO_Disable(0);
-}
-
-void cupKiller() {
-    deployArm();
-    retractArm();
-}
-
 void captureBall(){
     SERVO_Enable(1);
     SERVO_SetAngle(1,0);
@@ -935,6 +916,8 @@ void move(float radius, float cruisingSpeed, float distance,float finishAngle, i
 void setup() {
     BoardInit();
     RetractArm();
+    SERVO_Enable(1);
+    SERVO_SetAngle(1,150);
     /*
     initializeServos();
     pinMode(RIGHT_GREEN_IR_PIN, INPUT);
@@ -956,26 +939,23 @@ void loop() {
         bot.initialOrientation = bot.orientation;
         previousStep = actualStep;
 
-        if(actualStep == 9) {
+        if(actualStep == 10) {
             Calibrate_Line_Sensor(FollowLine.Manuel, 0);
         }
     }
 
-    
     if(cup.isArmExtended && actualTime - cup.initialTime >= cup.maxRetractTime) {
         RetractArm();
     }
 
-    Serial.println(actualStep);
-
     switch (actualStep)
     {   
-        case 1:
-            /*
-            if(DetectWhistle()) {
+        case 0:
+            if(DetectWhistle()){
                 actualStep++;
             }
-            */
+            break; 
+        case 1:
             actualStep++;
             break;
         case 2:
@@ -994,15 +974,18 @@ void loop() {
             move(0, 7, 24, 0, 0, 2, true);
             break;
         case 4:
-            move(17, 10, 0, M_PI/2 , 1, 0, false);
+            move(16, 10, 0, M_PI/2 , 1, 0, false);
             break;
         case 5:
             move(0, 12, 24, 0, 0, 2, false);
             break;
         case 6:
-            move(17, 10, 0, M_PI/2 , 1, 0, false);
+            move(16, 10, 0, M_PI/2 , 1, 0, false);
             break;
         case 7:
+            move(0, 10, 2, 0, 0, 0, false);
+            break;
+        case 8:
             followWall(startDistance, 0.4, 48, 0);
             if(startDistance == GREEN_DISTANCE){
                 CupKiller(cup.Green);
@@ -1010,7 +993,7 @@ void loop() {
                 CupKiller(cup.Yellow);
             }
             break;
-        case 8:
+        case 9:
             move(0, 12, 43, 0, 0, 0, false);
             if(startDistance == GREEN_DISTANCE){
                 CupKiller(cup.Green);
@@ -1018,22 +1001,22 @@ void loop() {
                 CupKiller(cup.Yellow);
             }
             break;
-        case 9:
-            move(0, 8, 10, 0, 0, 0, false);
-            break;
         case 10:
+            move(0, 4, 10, 0, 0, 0, false);
+            break;
+        case 11:
             if(ImIOnLine() == 1) {
                 PIDLigne();
                 actualStep++;
             }
             break;
-        case 11:
+        case 12:
             if(ImIOnLine() == 1)
                 PIDLigne();
             else 
                 move(3, 10, 0, M_PI/4 , 1, 0, false);
             break;
-        case 12:
+        case 13:
             break;
         default:
             break;
