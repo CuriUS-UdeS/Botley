@@ -3,6 +3,9 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
+//color 
+uint16_t r, g, b, c;
+
 struct readings{
   int R = 0;
   int G = 0;
@@ -43,7 +46,7 @@ const int precisionColor = 25;
 
 //uint16_t r, g, b, c; //ancien programme
 
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_60X);
 void initCalibrationValues(){
 // Initialize the Red calibration values
     I2C.Red.R.Min = 32000;
@@ -99,6 +102,7 @@ void initCalibrationValues(){
 //@brief  readI2C: lit les valeurs R,G,B,C du capteur et les ecrit dans I2C.Values."R,G,B et C"
 void readI2C(){
   //read values
+  Serial.println("reading values");
   I2C.Values.R = tcs.read16(TCS34725_RDATAL);
   I2C.Values.G = tcs.read16(TCS34725_GDATAL);
   I2C.Values.B = tcs.read16(TCS34725_BDATAL);
@@ -107,30 +111,30 @@ void readI2C(){
 
 void printMaxMin(int calibrationColor){  //@param calibrationColor : Red=1, Yellow=2, Green=3, Blue=4, White=5)
   if (calibrationColor == 1) {
-    Serial.println("Red:");
-    Serial.print("R: ");
+    Serial.print("Red:");
+    Serial.println("R: ");
     Serial.print("Min: ");
-    Serial.print(I2C.Red.R.Min);
+    Serial.println(I2C.Red.R.Min);
     Serial.print(", Max: ");
     Serial.println(I2C.Red.R.Max);
     
-    Serial.println("G:");
-    Serial.print("Min: ");
+    Serial.print("G:");
+    Serial.println("Min: ");
     Serial.print(I2C.Red.G.Min);
-    Serial.print(", Max: ");
-    Serial.println(I2C.Red.G.Max);
+    Serial.println(", Max: ");
+    Serial.print(I2C.Red.G.Max);
     
-    Serial.println("B:");
-    Serial.print("Min: ");
+    Serial.print("B:");
+    Serial.println("Min: ");
     Serial.print(I2C.Red.B.Min);
-    Serial.print(", Max: ");
-    Serial.println(I2C.Red.B.Max);
+    Serial.println(", Max: ");
+    Serial.print(I2C.Red.B.Max);
     
-    Serial.println("C:");
-    Serial.print("Min: ");
+    Serial.print("C:");
+    Serial.println("Min: ");
     Serial.print(I2C.Red.C.Min);
-    Serial.print(", Max: ");
-    Serial.println(I2C.Red.C.Max);
+    Serial.println(", Max: ");
+    Serial.print(I2C.Red.C.Max);
   }
   
   if (calibrationColor == 2) {
@@ -251,8 +255,8 @@ void AutomaticCalibrationColor (int calibrationColor){ //@param calibrationColor
     
     initCalibrationValues(); //Reset Min et Max
 
-    for (int i = 0; i < 400; i++){
-
+    for (int i = 0; i < 200; i++){
+        Serial.println("je fait une boucle");
       readI2C();
       //Trouver Min et Max
       if (calibrationColor == 1){
@@ -412,14 +416,14 @@ void AutomaticCalibrationColor (int calibrationColor){ //@param calibrationColor
         I2C.White.C.Max = I2C.Values.C;
     }
   }
-    delay(20);
+    delay(100);
     }
   }
-
+    Serial.println("setting pin13 low");
   digitalWrite(13, LOW); //Fin de Calibration
 
 
-return;
+
 }
 
 void ManualCalibration (){
@@ -566,6 +570,7 @@ void superCrazyCalibration (){
 }
 
 
+
 void setup() {
   BoardInit();
   Serial.begin(9600);
@@ -579,10 +584,8 @@ void setup() {
   }
 
   
-  superCrazyCalibration(); //Finds all the values
+  //superCrazyCalibration(); //Finds all the values
 }
-
-
 
 
 void loop(void) {
@@ -590,9 +593,11 @@ void loop(void) {
   //ManualCalibration ();
 
 
-  findColor();
+//findColor();
 
-/*  r = tcs.read16(TCS34725_RDATAL);
+
+
+    r = tcs.read16(TCS34725_RDATAL);
     g = tcs.read16(TCS34725_GDATAL);
     b = tcs.read16(TCS34725_BDATAL);
     c = tcs.read16(TCS34725_CDATAL);
@@ -608,7 +613,8 @@ void loop(void) {
   
        // Add a delay to control the update rate (in milliseconds)
     delay(100);
-
+    
+/*
  //These values work when strapped directly to the motor'
   
   if (r > 90 && r < 155 && g > 60 && g < 100 && b > 50 && b < 100 && c > 250 && c < 360){
