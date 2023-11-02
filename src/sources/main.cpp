@@ -14,7 +14,7 @@ const int RIGHT_GREEN_IR_PIN = 41;
 const int LEFT_RED_IR_PIN = 42;
 const int LEFT_GREEN_IR_PIN = 43;
 
-const int kHzWhistlePin=A10;
+const int kHzWhistlePin = A10;
 
 uint16_t r, g, b, c;
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
@@ -948,7 +948,7 @@ void setup() {
 }
 
 void loop() {
-    //float actualTime = millis();
+    float actualTime = millis();
 
     if(previousStep - actualStep != 0) {
         bot.initialXPosition = bot.xPosition;
@@ -961,20 +961,23 @@ void loop() {
         }
     }
 
-    /*
+    
     if(cup.isArmExtended && actualTime - cup.initialTime >= cup.maxRetractTime) {
         RetractArm();
     }
-    */
 
     Serial.println(actualStep);
 
     switch (actualStep)
     {   
         case 1:
+            /*
             if(DetectWhistle()) {
-                Serial.println(DetectWhistle());
+                actualStep++;
             }
+            */
+            actualStep++;
+            break;
         case 2:
             startDistance = ROBUS_ReadIR(3);
             if(startDistance < 120) {
